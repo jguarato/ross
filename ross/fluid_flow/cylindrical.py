@@ -1,7 +1,7 @@
 import time
 
 import numpy as np
-from numpy.linalg import pinv
+import plotly.graph_objects as go
 from ross.bearing_seal_element import BearingElement
 from ross.units import Q_, check_units
 from scipy.optimize import curve_fit, minimize
@@ -2943,6 +2943,204 @@ class THDCylindrical(BearingElement):
         Ss = S
 
         return Ss
+
+    def _pressure_distribution(self, fig=None, **kwargs):
+        """Plot pressure distribution.
+
+        Parameters
+        ----------
+        fig : Plotly graph_objects.Figure()
+            The figure object with the plot.
+        kwargs : optional
+            Additional key word arguments can be passed to change the plot layout only
+            (e.g. width=1000, height=800, ...).
+            *See Plotly Python Figure Reference for more information.
+
+        Returns
+        -------
+        fig : Plotly graph_objects.Figure()
+            The figure object with the plot.
+        """
+
+        if fig is None:
+            fig = go.Figure()
+
+        n_elements = self.elements_circumferential
+        P_distribution = self.P[0, :, :]
+
+        points = {"x": [], "y": []}
+
+        for n_p in range(self.n_pad):
+            # Plot the normals scaled by pressure
+            scale = P_distribution[:, n_p] / np.max(np.abs(P_distribution)) * 0.5
+
+            theta = np.arange(
+                self.theta_p[n_p][0] + self.dtheta / 2,
+                self.theta_p[n_p][1],
+                self.dtheta,
+            )
+            x = np.cos(theta)
+            y = np.sin(theta)
+
+            for i in range(n_elements):
+                x_i = x[i]
+                y_i = y[i]
+                x_f = x_i + scale[i] * np.cos(theta[i])
+                y_f = y_i + scale[i] * np.sin(theta[i])
+
+                angle = theta[i] * 180 / np.pi
+                pressure = P_distribution[i, n_p]
+                data_info = f"Pad {n_p}<br>Angle: {angle:.0f} deg<br>Pressure: {pressure:.6f} Pa"
+                name = f"Pad {n_p} distribution"
+
+                fig.add_trace(
+                    go.Scatter(
+                        x=[x_i, x_f],
+                        y=[y_i, y_f],
+                        mode="lines",
+                        line=dict(color="blue", width=3),
+                        hoverinfo="none",
+                        name=name,
+                    )
+                )
+
+                if abs(np.sqrt(x_f**2 + y_f**2) - 1) > 1e-2:
+                    fig.add_trace(
+                        go.Scatter(
+                            x=[x_f],
+                            y=[y_f],
+                            mode="markers",
+                            marker=dict(size=6, color="blue"),
+                            hoverinfo="text",
+                            text=data_info,
+                            name=name,
+                        )
+                    )
+
+                # fig.add_annotation(
+                #     x=x_i, y=y_i,
+                #     ax=x_f, ay=y_f,
+                #     xref="x", yref="y",
+                #     axref="x", ayref="y",
+                #     showarrow=True,
+                #     arrowhead=3,
+                #     arrowsize=1,
+                #     arrowwidth=2,
+                #     arrowcolor="blue",
+                #     hovertext=data_info,
+                # )
+
+                points["x"].append(x_f)
+                points["y"].append(y_f)
+
+        points["x"].append(points["x"][0])
+        points["y"].append(points["y"][0])
+
+        fig.add_trace(
+            go.Scatter(
+                x=points["x"],
+                y=points["y"],
+                mode="lines",
+                line_shape="spline",
+                line=dict(color="black", width=1.5, dash="dash"),
+                hoverinfo="text",
+                text=data_info,
+                name="Distribution curve",
+            )
+        )
+
+        P_min = np.min(P_distribution)
+        P_max = np.max(P_distribution)
+        fig.add_annotation(
+            x=1,
+            y=1,
+            xref="paper",
+            yref="paper",
+            align="right",
+            showarrow=False,
+            font=dict(size=16, color="black"),
+            text=f"<b>Pressure Distribution</b><br>Min: {P_min:.2f} Pa<br>Max: {P_max:.2f} Pa",
+        )
+
+        limit = 1.75
+        fig.update_xaxes(range=[-limit, limit])
+        fig.update_yaxes(range=[-limit, limit])
+
+        return fig
+
+    def plot_bearing_representation(
+        self, pressure_distribution=False, fig=None, **kwargs
+    ):
+        """Plot bearing representation.
+
+        Parameters
+        ----------
+        pressure_distribution : boolean, optional
+            Show pressure distribution on bearing. Default is False.
+        fig : Plotly graph_objects.Figure()
+            The figure object with the plot.
+        kwargs : optional
+            Additional key word arguments can be passed to change the plot layout only
+            (e.g. width=1000, height=800, ...).
+            *See Plotly Python Figure Reference for more information.
+
+        Returns
+        -------
+        fig : Plotly graph_objects.Figure()
+            The figure object with the plot.
+        """
+
+        if fig is None:
+            fig = go.Figure()
+
+        n_elements = self.elements_circumferential
+        total_points = 1000  # Number of points to create a circle
+        num_points = int(self.dtheta * n_elements * total_points / (2 * np.pi))
+
+        thetaI = 0
+        self.theta_p = []
+
+        for n_p in range(self.n_pad):
+            thetaF = self.thetaF[n_p]
+            theta_ref = np.sort(np.arange(thetaF, thetaI, -self.dtheta))
+            self.theta_p.append((theta_ref[0], theta_ref[-1]))
+            thetaI = thetaF
+
+            # Plot pad
+            theta = np.linspace(self.theta_p[n_p][0], self.theta_p[n_p][1], num_points)
+            x = np.cos(theta)
+            y = np.sin(theta)
+
+            fig.add_trace(
+                go.Scatter(
+                    x=x,
+                    y=y,
+                    mode="lines",
+                    line=dict(color="#929591", width=6),
+                    hoverinfo="text",
+                    text=f"Pad {n_p}",
+                    name=f"Pad {n_p} plot",
+                )
+            )
+
+            fig.update_layout(
+                title=f"Cylindrical Bearing",
+                xaxis=dict(
+                    showgrid=False,
+                    zeroline=False,
+                    showticklabels=False,
+                    scaleanchor="y",
+                ),
+                yaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
+                width=800,
+                height=800,
+                showlegend=False,
+            )
+
+        if pressure_distribution:
+            fig = self._pressure_distribution(fig)
+
+        return fig
 
 
 def cylindrical_bearing_example():
