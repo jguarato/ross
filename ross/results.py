@@ -772,6 +772,96 @@ class Shape(Results):
 
         return fig
 
+    def plot_torsional(self, length_units="m", fig=None):
+        if self.mode_type == "Torsional":
+            if fig is None:
+                fig = go.Figure()
+
+            size = len(self.vector)
+            torsional_dofs = np.arange(5, size, self.number_dof)
+
+            theta = np.abs(self.vector[torsional_dofs]) * np.angle(
+                self.vector[torsional_dofs]
+            )
+
+            joint_points = {"x": [], "y": [], "z": []}
+
+            for n, orbit in enumerate(self.orbits):
+                xn = [np.cos(theta[n]), np.cos(theta[n] + np.pi)]
+                yn = [np.sin(theta[n]), np.sin(theta[n] + np.pi)]
+                zc_pos = Q_(orbit.node_pos, "m").to(length_units).m
+                fig.add_trace(
+                    go.Scatter3d(
+                        x=[zc_pos, zc_pos],
+                        y=xn,
+                        z=yn,
+                        mode="lines+markers",
+                        line=dict(color="red"),
+                        marker=dict(size=4),
+                        # name="node {}".format(orbit.node),
+                        showlegend=False,
+                        # hovertemplate=(
+                        #     "Nodal Position: %{x:.2f}<br>"
+                        #     + f"Torsion angle: {theta[n]:.2f}>"
+                        # ),
+                    )
+                )
+
+                joint_points["x"].append(zc_pos)
+                joint_points["y"].append(xn[0])
+                joint_points["z"].append(yn[0])
+
+            fig.add_trace(
+                go.Scatter3d(
+                    x=joint_points["x"],
+                    y=joint_points["y"],
+                    z=joint_points["z"],
+                    mode="lines",
+                    line=dict(color="red", dash="dot"),
+                    hoverinfo="none",
+                    showlegend=False,
+                )
+            )
+
+            zn = self.zn.copy()
+            zn_cl0 = -(zn[-1] * 0.1)
+            zn_cl1 = zn[-1] * 1.1
+            zn_cl = np.linspace(zn_cl0, zn_cl1, 30)
+            fig.add_trace(
+                go.Scatter3d(
+                    x=Q_(zn_cl, "m").to(length_units).m,
+                    y=zn_cl * 0,
+                    z=zn_cl * 0,
+                    mode="lines",
+                    line=dict(color="black", dash="dashdot"),
+                    hoverinfo="none",
+                    showlegend=False,
+                )
+            )
+
+            fig.update_layout(
+                scene=dict(
+                    xaxis=dict(
+                        title=dict(text=f"Rotor Length ({length_units})"),
+                        autorange="reversed",
+                        nticks=5,
+                    ),
+                    yaxis=dict(
+                        title=dict(text="Displacement"),
+                    ),
+                    zaxis=dict(
+                        title=dict(text="Displacement"),
+                    ),
+                    aspectmode="manual",
+                    aspectratio=dict(x=2.5, y=1, z=1),
+                ),
+            )
+
+            return fig
+
+        else:
+            print("This is not a torsional mode")
+
 
 class CriticalSpeedResults(Results):
     """Class used to store results from run_critical_speed() method.
