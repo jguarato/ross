@@ -772,52 +772,115 @@ class Shape(Results):
 
         return fig
 
-    def plot_torsional(self, length_units="m", fig=None):
+    def plot_torsional2d(self, length_units="m", phase_units="deg", fig=None):
+
         if self.mode_type == "Torsional":
+
             if fig is None:
                 fig = go.Figure()
 
             size = len(self.vector)
             torsional_dofs = np.arange(5, size, self.number_dof)
 
-            theta = np.abs(self.vector[torsional_dofs]) * np.angle(
-                self.vector[torsional_dofs]
+            theta = np.real(self.vector[torsional_dofs])
+
+            torsion_color = "purple"
+            nodes_pos = Q_(self.nodes_pos, "m").to(length_units).m
+
+            fig.add_trace(
+                go.Scatter(
+                    x=nodes_pos,
+                    y=Q_(theta, "rad").to(phase_units).m,
+                    mode="lines",
+                    line=dict(color=torsion_color),
+                    showlegend=False,
+                    hovertemplate=(f"Angle: %{{y:.2e}} {phase_units}<br>"),
+                ),
             )
 
-            joint_points = {"x": [], "y": [], "z": []}
+            # plot center line
+            fig.add_trace(
+                go.Scatter(
+                    x=nodes_pos,
+                    y=np.zeros(len(nodes_pos)),
+                    mode="lines",
+                    line=dict(color="black", dash="dashdot"),
+                    name="centerline",
+                    hoverinfo="none",
+                    showlegend=False,
+                )
+            )
 
+            fig.update_yaxes(title_text=f"Torsional Angle ({phase_units})")
+            fig.update_xaxes(title_text=f"Rotor Length ({length_units})")
+
+            return fig
+
+        else:
+            print("This is not a torsional mode")
+
+    def plot_torsional3d(self, length_units="m", phase_units="deg", fig=None):
+
+        if self.mode_type == "Torsional":
+
+            if fig is None:
+                fig = go.Figure()
+
+            size = len(self.vector)
+            torsional_dofs = np.arange(5, size, self.number_dof)
+
+            theta = np.real(self.vector[torsional_dofs])
+
+            xt = np.cos(theta)
+            yt = np.sin(theta)
+            zt = []
+
+            torsion_color = "purple"
             for n, orbit in enumerate(self.orbits):
-                xn = [np.cos(theta[n]), np.cos(theta[n] + np.pi)]
-                yn = [np.sin(theta[n]), np.sin(theta[n] + np.pi)]
                 zc_pos = Q_(orbit.node_pos, "m").to(length_units).m
+                zt.append(zc_pos)
+
+                theta_units = Q_(theta[n], "rad").to(phase_units).m
                 fig.add_trace(
                     go.Scatter3d(
                         x=[zc_pos, zc_pos],
-                        y=xn,
-                        z=yn,
-                        mode="lines+markers",
-                        line=dict(color="red"),
-                        marker=dict(size=4),
-                        # name="node {}".format(orbit.node),
+                        y=[0, xt[n]],
+                        z=[0, yt[n]],
+                        mode="lines",
+                        line=dict(color=torsion_color),
+                        name="node {}".format(orbit.node),
                         showlegend=False,
-                        # hovertemplate=(
-                        #     "Nodal Position: %{x:.2f}<br>"
-                        #     + f"Torsion angle: {theta[n]:.2f}>"
-                        # ),
+                        hovertemplate=(
+                            "Nodal Position: %{x:.2f}<br>"
+                            + f"Torsion angle: {theta_units:.2e} {phase_units}"
+                        ),
                     )
                 )
 
-                joint_points["x"].append(zc_pos)
-                joint_points["y"].append(xn[0])
-                joint_points["z"].append(yn[0])
+                # Circles
+                radius = np.sqrt(xt[n] ** 2 + yt[n] ** 2)
+                angle = np.linspace(0, 2 * np.pi, 100)
+                xc = radius * np.cos(angle)
+                yc = radius * np.sin(angle)
+                fig.add_trace(
+                    go.Scatter3d(
+                        x=[zc_pos] * size,
+                        y=xc,
+                        z=yc,
+                        mode="lines",
+                        line=dict(color="olive", dash="dot"),
+                        hoverinfo="none",
+                        showlegend=False,
+                    )
+                )
 
             fig.add_trace(
                 go.Scatter3d(
-                    x=joint_points["x"],
-                    y=joint_points["y"],
-                    z=joint_points["z"],
-                    mode="lines",
-                    line=dict(color="red", dash="dot"),
+                    x=zt,
+                    y=xt,
+                    z=yt,
+                    mode="lines+markers",
+                    line=dict(color=torsion_color, dash="solid"),
                     hoverinfo="none",
                     showlegend=False,
                 )
@@ -847,10 +910,10 @@ class Shape(Results):
                         nticks=5,
                     ),
                     yaxis=dict(
-                        title=dict(text="Displacement"),
+                        title=dict(text="Relative Displacement"),
                     ),
                     zaxis=dict(
-                        title=dict(text="Displacement"),
+                        title=dict(text="Relative Displacement"),
                     ),
                     aspectmode="manual",
                     aspectratio=dict(x=2.5, y=1, z=1),
