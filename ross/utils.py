@@ -899,7 +899,7 @@ def convert_6dof_to_4dof(rotor):
     True
     """
     # Copy the rotor object
-    new_rotor = copy(rotor)
+    new_rotor = rotor.copy()
 
     # Modify matrix methods to get 4 dof matrices
     new_rotor.M = lambda frequency=None, synchronous=False: remove_dofs(
@@ -909,10 +909,6 @@ def convert_6dof_to_4dof(rotor):
     new_rotor.Ksdt = lambda: remove_dofs(rotor.Ksdt())
     new_rotor.C = lambda frequency: remove_dofs(rotor.C(frequency))
     new_rotor.G = lambda: remove_dofs(rotor.G())
-
-    # Because of lru_cache, we need to unwrap the methods
-    new_rotor.run_modal = new_rotor.run_modal.__wrapped__
-    new_rotor._run_freq_response = new_rotor._run_freq_response.__wrapped__
 
     # Update number of dofs
     new_rotor.number_dof = 4
@@ -960,7 +956,7 @@ def convert_6dof_to_torsional(rotor):
     True
     """
     # Copy the rotor object
-    new_rotor = copy(rotor)
+    new_rotor = rotor.copy()
 
     # Create a list of dofs to remove (axial and lateral dofs)
     dofs = [i for i in range(rotor.ndof) if (i - 5) % 6 != 0 or i < 5]
@@ -973,10 +969,6 @@ def convert_6dof_to_torsional(rotor):
     new_rotor.Ksdt = lambda: remove_dofs(rotor.Ksdt(), dofs)
     new_rotor.C = lambda frequency: remove_dofs(rotor.C(frequency), dofs)
     new_rotor.G = lambda: remove_dofs(rotor.G(), dofs)
-
-    # Because of lru_cache, we need to unwrap the methods
-    new_rotor.run_modal = new_rotor.run_modal.__wrapped__
-    new_rotor._run_freq_response = new_rotor._run_freq_response.__wrapped__
 
     # Update number of dofs
     new_rotor.number_dof = 1
