@@ -116,6 +116,7 @@ class MultiRotor(Rotor):
         tag=None,
     ):
         self.rotors = [driving_rotor, driven_rotor]
+        self.coupled_nodes = coupled_nodes
         self.gear_ratio = gear_ratio
         self.gear_mesh_stiffness = gear_mesh_stiffness
         self.orientation_angle = float(orientation_angle)
@@ -496,6 +497,38 @@ class MultiRotor(Rotor):
 
         return self._join_matrices(
             self.rotors[0].G(), -self.gear_ratio * self.rotors[1].G()
+        )
+
+    def copy(self, position="above", tag=None):
+        """Copy a multirotor model
+
+        Parameters
+        ----------
+
+        tag : str, optional
+            New tag name. Default is same of the original rotor.
+
+        Returns
+        -------
+        rotor: rs.MultiRotor
+            The multirotor copied.
+
+        Example
+        -------
+        >>> rotor1 = two_shaft_rotor_example()
+        >>> rotor2 = rotor1.copy()
+        >>> rotor1 == rotor2
+        True
+        """
+        return self.__class__(
+            self.rotors[0],
+            self.rotors[1],
+            self.coupled_nodes,
+            self.gear_ratio,
+            self.gear_mesh_stiffness,
+            orientation_angle=self.orientation_angle,
+            position=position,
+            tag=tag,
         )
 
 
