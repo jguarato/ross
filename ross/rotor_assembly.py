@@ -53,8 +53,6 @@ from ross.utils import (
     newmark,
     assemble_C_K_matrices,
     remove_dofs,
-    convert_6dof_to_4dof,
-    convert_6dof_to_torsional,
 )
 from ross.seals.labyrinth_seal import LabyrinthSeal
 
@@ -644,16 +642,16 @@ class Rotor(object):
         return None
 
     def __eq__(self, other):
-        """Equality method for comparasions.
+        """Equality method for comparisons.
 
         Parameters
         ----------
-        other : obj
-            parameter for comparasion
+        other : rs.Rotor
+            The rotor object of comparison.
 
         Returns
         -------
-        True if other is equal to the reference parameter.
+        True if other is equal to the reference object.
         False if not.
         """
         if self.elements == other.elements and self.parameters == other.parameters:
@@ -2840,7 +2838,7 @@ class Rotor(object):
                 results[i, :, 3] = modal.whirl_values()[idx][:frequencies]
 
         if torsional_analysis:
-            rotor_t = convert_6dof_to_torsional(self)
+            rotor_t = self.to_torsional()
             campbell_t = rotor_t.run_campbell(
                 speed_range=speed_range,
                 frequencies=int(frequencies / 6),
@@ -2941,12 +2939,10 @@ class Rotor(object):
                 if b.n not in self.link_nodes
             ]
 
-            rotor = convert_6dof_to_4dof(
-                self.copy(
-                    shaft_elements=shaft_elements,
-                    bearing_elements=bearings,
-                )
-            )
+            rotor = self.copy(
+                shaft_elements=shaft_elements,
+                bearing_elements=bearings,
+            ).to_4dof()
 
             modal = rotor.run_modal(
                 speed=0, num_modes=num_modes, synchronous=synchronous
@@ -3026,13 +3022,11 @@ class Rotor(object):
                         ]
 
                         # create rotor
-                        rotor_critical = convert_6dof_to_4dof(
-                            Rotor(
-                                shaft_elements=shaft_elements,
-                                disk_elements=self.disk_elements,
-                                bearing_elements=bearings,
-                            )
-                        )
+                        rotor_critical = Rotor(
+                            shaft_elements=shaft_elements,
+                            disk_elements=self.disk_elements,
+                            bearing_elements=bearings,
+                        ).to_4dof()
 
                         modal_critical = rotor_critical.run_modal(speed=speed)
                         critical_points_modal.append(modal_critical)
@@ -3726,6 +3720,116 @@ class Rotor(object):
             rated_w=self.rated_w,
             tag=tag or self.tag,
         )
+
+    def to_4dof(self):
+        """Convert a 6 dof rotor model to a 4 dof model.
+
+        This function takes a 6 dof rotor model and modifies it by removing the axial and
+        torsional dofs. It adjusts the corresponding matrix methods to reflect this change.
+
+        Parameters
+        ----------
+        rotor: rs.Rotor
+            The rotor object of 6 dof model.
+
+        Returns
+        -------
+        new_rotor: rs.Rotor
+            The rotor object modified.
+
+        Examples
+        --------
+        >>> import ross as rs
+        >>> rotor = rs.rotor_example_6dof()
+        >>> rotor_mod = rotor.to_4dof()
+        >>> n_nodes = rotor.nodes[-1] + 1
+        >>> M_6dof = rotor.M()
+        >>> M_4dof = rotor_mod.M()
+        >>> M_6dof.shape
+        (42, 42)
+        >>> len(M_6dof) == n_nodes * 6
+        True
+        >>> M_4dof.shape
+        (28, 28)
+        >>> len(M_4dof) == n_nodes * 4
+        True
+        """
+        # Copy the rotor object
+        new_rotor = self.copy()
+
+        # Modify matrix methods to get 4 dof matrices
+        new_rotor.M = lambda frequency=None, synchronous=False: remove_dofs(
+            self.M(frequency=frequency, synchronous=synchronous)
+        )
+        new_rotor.K = lambda frequency: remove_dofs(self.K(frequency))
+        new_rotor.Ksdt = lambda: remove_dofs(self.Ksdt())
+        new_rotor.C = lambda frequency: remove_dofs(self.C(frequency))
+        new_rotor.G = lambda: remove_dofs(self.G())
+
+        # Update number of dofs
+        new_rotor.number_dof = 4
+        new_rotor.ndof = len(new_rotor.M())
+
+        return new_rotor
+
+    def to_torsional(self):
+        """Convert a 6 dof rotor model to a model with only torsional dofs.
+
+        This function takes a 6 dof rotor model and modifies it by removing the axial and
+        lateral dofs. It adjusts the corresponding matrix methods to reflect this change.
+
+        Important Note:
+        Some Rotor class methods, such as `run_ucs`, and `run_unbalance_response`, may not
+        work correctly with the modified rotor object. This is because these methods expect
+        a rotor with 6 dofs or at least 4 dofs.
+
+        Parameters
+        ----------
+        rotor: rs.Rotor
+            The rotor object of 6 dof model.
+
+        Returns
+        -------
+        new_rotor: rs.Rotor
+            The rotor object modified.
+
+        Examples
+        --------
+        >>> import ross as rs
+        >>> rotor = rs.rotor_example_6dof()
+        >>> rotor_mod = rotor.to_torsional()
+        >>> n_nodes = rotor.nodes[-1] + 1
+        >>> M_6dof = rotor.M()
+        >>> M_tdof = rotor_mod.M()
+        >>> M_6dof.shape
+        (42, 42)
+        >>> len(M_6dof) == n_nodes * 6
+        True
+        >>> M_tdof.shape
+        (7, 7)
+        >>> len(M_tdof) == n_nodes * 1
+        True
+        """
+        # Copy the rotor object
+        new_rotor = self.copy()
+
+        # Create a list of dofs to remove (axial and lateral dofs)
+        dofs = [i for i in range(self.ndof) if (i - 5) % 6 != 0 or i < 5]
+
+        # Modify matrix methods to get 1 (torsional only) dof matrices
+        new_rotor.M = lambda frequency=None, synchronous=False: remove_dofs(
+            self.M(frequency=frequency, synchronous=synchronous), dofs
+        )
+        new_rotor.K = lambda frequency: remove_dofs(self.K(frequency), dofs)
+        new_rotor.Ksdt = lambda: remove_dofs(self.Ksdt(), dofs)
+        new_rotor.C = lambda frequency: remove_dofs(self.C(frequency), dofs)
+        new_rotor.G = lambda: remove_dofs(self.G(), dofs)
+
+        # Update number of dofs
+        new_rotor.number_dof = 1
+        new_rotor.ndof = len(new_rotor.M())
+
+        return new_rotor
 
     def run_static(self):
         """Run static analysis.

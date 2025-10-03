@@ -1,6 +1,5 @@
 import numpy as np
 from re import search
-from copy import deepcopy as copy
 
 import ross as rs
 from ross.gear_element import GearElement
@@ -144,12 +143,10 @@ class MultiRotor(Rotor):
         tag=None,
     ):
         self.rotors = [driving_rotor, driven_rotor]
-        self.coupled_nodes = coupled_nodes
-        self.gear_mesh_stiffness = gear_mesh_stiffness
         self.orientation_angle = float(orientation_angle)
 
-        R1 = copy(driving_rotor)
-        R2 = copy(driven_rotor)
+        R1 = driving_rotor.copy()
+        R2 = driven_rotor.copy()
 
         gear_1 = [
             elm
@@ -280,6 +277,14 @@ class MultiRotor(Rotor):
             bearing_elements,
             point_mass_elements,
             tag=tag,
+        )
+
+        self.parameters.update(
+            {
+                "coupled_nodes": coupled_nodes,
+                "gear_mesh_stiffness": gear_mesh_stiffness,
+                "orientation_angle": orientation_angle,
+            }
         )
 
     def _fix_nodes_pos(self, index, node, nodes_pos_l):
@@ -743,14 +748,16 @@ class MultiRotor(Rotor):
 
         Parameters
         ----------
-
+        position : str, optional
+            The relative position of the driven rotor with respect to the driving rotor
+            when plotting the multi-rotor. Default is 'above'.
         tag : str, optional
             New tag name. Default is same of the original rotor.
 
         Returns
         -------
         rotor: rs.MultiRotor
-            The multirotor copied.
+            The multirotor object copied.
 
         Example
         -------
@@ -759,15 +766,34 @@ class MultiRotor(Rotor):
         >>> rotor1 == rotor2
         True
         """
+
         return self.__class__(
             self.rotors[0],
             self.rotors[1],
-            self.coupled_nodes,
-            self.gear_mesh_stiffness,
-            orientation_angle=self.orientation_angle,
+            self.parameters["coupled_nodes"],
+            self.parameters["gear_mesh_stiffness"],
+            self.parameters["orientation_angle"],
             position=position,
             tag=tag,
         )
+
+    def __eq__(self, other):
+        """Equality method for comparisons.
+
+        Parameters
+        ----------
+        other : rs.MultiRotor
+            The multirotor object of comparison.
+
+        Returns
+        -------
+        True if other is equal to the reference object.
+        False if not.
+        """
+        if self.rotors == other.rotors and self.parameters == other.parameters:
+            return True
+        else:
+            return False
 
 
 def two_shaft_rotor_example():
