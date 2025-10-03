@@ -2942,9 +2942,8 @@ class Rotor(object):
             ]
 
             rotor = convert_6dof_to_4dof(
-                self.__class__(
+                self.copy(
                     shaft_elements=shaft_elements,
-                    disk_elements=self.disk_elements,
                     bearing_elements=bearings,
                 )
             )
@@ -3124,7 +3123,7 @@ class Rotor(object):
             cross_coupling = bearings[0].__class__(n=n, kxx=0, cxx=0, kxy=Q, kyx=-Q)
             bearings.append(cross_coupling)
 
-            rotor = self.__class__(self.shaft_elements, self.disk_elements, bearings)
+            rotor = self.copy(bearing_elements=bearings)
 
             modal = rotor.run_modal(speed=speed)
             non_backward = modal.whirl_direction() != "Backward"
@@ -3672,11 +3671,30 @@ class Rotor(object):
             **parameters,
         )
 
-    def copy(self, tag=None):
-        """Copy a rotor model
+    def copy(
+        self,
+        shaft_elements=None,
+        disk_elements=None,
+        bearing_elements=None,
+        point_mass_elements=None,
+        tag=None,
+    ):
+        """Copy a rotor model or modify the original
 
         Parameters
         ----------
+        shaft_elements : list, optional
+            List with the shaft elements if elements other than the original ones
+            are to be considered.
+        disk_elements : list, optional
+            List with the disk elements if elements other than the original ones
+            are to be considered.
+        bearing_elements : list, optional
+            List with the bearing elements if elements other than the original ones
+            are to be considered.
+        point_mass_elements: list, optional
+            List with the point mass elements if elements other than the original ones
+            are to be considered.
         tag : str, optional
             New tag name. Default is same of the original rotor.
 
@@ -3692,11 +3710,17 @@ class Rotor(object):
         >>> rotor1 == rotor2
         True
         """
+
+        shaft_elements = shaft_elements or deepcopy(self.shaft_elements)
+        disk_elements = disk_elements or deepcopy(self.disk_elements)
+        bearing_elements = bearing_elements or deepcopy(self.bearing_elements)
+        point_mass_elements = point_mass_elements or deepcopy(self.point_mass_elements)
+
         return self.__class__(
-            deepcopy(self.shaft_elements),
-            disk_elements=deepcopy(self.disk_elements),
-            bearing_elements=deepcopy(self.bearing_elements),
-            point_mass_elements=deepcopy(self.point_mass_elements),
+            shaft_elements,
+            disk_elements=disk_elements,
+            bearing_elements=bearing_elements,
+            point_mass_elements=point_mass_elements,
             min_w=self.min_w,
             max_w=self.max_w,
             rated_w=self.rated_w,
