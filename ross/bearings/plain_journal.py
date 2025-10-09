@@ -12,9 +12,9 @@ from ross.plotly_theme import tableau_colors
 from ross.bearings.lubricants import lubricants_dict
 
 
-class THDCylindrical(BearingElement):
+class PlainJournal(BearingElement):
     """This class calculates the pressure and temperature field in oil film of
-    a cylindrical bearing. It is also possible to obtain the stiffness and
+    a plain journal bearing. It is also possible to obtain the stiffness and
     damping coefficients.
     The basic references for the code is found in :cite:t:`barbosa2018`, :cite:t:`daniel2012` and :cite:t:`nicoletti1999`.
 
@@ -46,6 +46,9 @@ class THDCylindrical(BearingElement):
         Choose the method to calculate the dynamics coefficients. Options are:
         - 'lund'
         - 'perturbation'
+    model_type : str, optional
+        Type of model to be used. Options:
+        - 'thermo_hydro_dynamic': Thermo-Hydro-Dynamic model
     print_progress : bool
         Set it True to print the score and forces on each iteration.
         False by default.
@@ -111,7 +114,7 @@ class THDCylindrical(BearingElement):
 
     Returns
     -------
-    A THDCylindrical object.
+    A PlainJournal object.
 
     References
     ----------
@@ -138,8 +141,8 @@ class THDCylindrical(BearingElement):
 
     Example
     --------
-    >>> from ross.bearings.cylindrical import THDCylindrical
-    >>> bearing = THDCylindrical(
+    >>> from ross.bearings.plain_journal import PlainJournal
+    >>> bearing = PlainJournal(
     ...    n=3,
     ...    axial_length=0.263144,
     ...    journal_radius=0.2,
@@ -193,6 +196,7 @@ class THDCylindrical(BearingElement):
         sommerfeld_type=2,
         initial_guess=[0.1, -0.1],
         method="perturbation",
+        model_type="thermo_hydro_dynamic",
         operating_type="flooded",
         oil_supply_pressure=None,
         oil_flow_v=None,
@@ -220,6 +224,7 @@ class THDCylindrical(BearingElement):
         self.initial_guess = initial_guess
         self.method = method
         self.operating_type = operating_type
+        self.model_type = model_type
         self.oil_supply_pressure = oil_supply_pressure
         self.oil_flow_v = oil_flow_v
         self.show_coeffs = show_coeffs
@@ -234,14 +239,13 @@ class THDCylindrical(BearingElement):
         self.thetaF = self.betha_s
         self.dtheta = (self.thetaF - self.thetaI) / (self.elements_circumferential)
 
-        if self.method == "perturbation":
-            pad_ct = np.arange(0, 360, int(360 / self.n_pad))
-            self.thetaI = np.radians(pad_ct + 180 / self.n_pad - self.betha_s_dg / 2)
-            self.thetaF = np.radians(pad_ct + 180 / self.n_pad + self.betha_s_dg / 2)
-            self.theta_range = [
-                np.arange(start_rad + (self.dtheta / 2), end_rad, self.dtheta)
-                for start_rad, end_rad in zip(self.thetaI, self.thetaF)
-            ]
+        pad_ct = np.arange(0, 360, int(360 / self.n_pad))
+        self.thetaI = np.radians(pad_ct + 180 / self.n_pad - self.betha_s_dg / 2)
+        self.thetaF = np.radians(pad_ct + 180 / self.n_pad + self.betha_s_dg / 2)
+        self.theta_range = [
+            np.arange(start_rad + (self.dtheta / 2), end_rad, self.dtheta)
+            for start_rad, end_rad in zip(self.thetaI, self.thetaF)
+        ]
 
         # Dimensionless discretization variables
         self.dY = 1 / self.elements_circumferential
@@ -289,7 +293,7 @@ class THDCylindrical(BearingElement):
         )  # Interpolation function
         self.reference_viscosity = self.interpolate(self.reference_temperature)
 
-        # if self.geometry == "lobe":
+        # Pivot angle for lobe geometry
         self.theta_pivot = np.array([90, 270]) * np.pi / 180
 
         n_freq = np.shape(frequency)[0]
@@ -307,7 +311,8 @@ class THDCylindrical(BearingElement):
         for i in range(n_freq):
             speed = frequency[i]
 
-            self.run(speed)
+            if self.model_type == "thermo_hydro_dynamic":
+                self.run_thermo_hydro_dynamic(speed)
 
             coeffs = self.coefficients(speed)
             kxx[i], kxy[i], kyx[i], kyy[i] = coeffs[0]
@@ -608,12 +613,12 @@ class THDCylindrical(BearingElement):
                     if self.theta_vol_groove[n_p] > 1:
                         self.theta_vol_groove[n_p] = 1
 
-        self.P = Pdim
-        self.T = Tdim
+        # self.P must receive the adimensional pressure field
+        self.P = Pdim * (self.radial_clearance**2) / (self.reference_viscosity * speed * (self.journal_radius**2))
         self.Theta_vol = Theta_vol
 
-        PPlot = self.P.reshape(self.elements_axial, -1, order="F")
-        TPlot = self.T.reshape(self.elements_axial, -1, order="F")
+        # Reshape dimensional pressure field from (axial, circumferential, pads) to (axial, all_other_dims)
+        PPlot = Pdim.reshape(self.elements_axial, -1, order="F")
 
         Ytheta = np.sort(
             np.linspace(
@@ -632,7 +637,7 @@ class THDCylindrical(BearingElement):
 
         return Fhx, Fhy
 
-    def run(self, speed):
+    def run_thermo_hydro_dynamic(self, speed):
         """This method runs the optimization to find the equilibrium position of
         the rotor's center.
         """
@@ -682,7 +687,7 @@ class THDCylindrical(BearingElement):
         def viscosity(x, a, b):
             return a * (x**b)
 
-        xdata = [T_muI, T_muF]  # changed boundary conditions to avoid division by ]
+        xdata = [T_muI, T_muF]  # changed boundary conditions to avoid division by zero
         ydata = [mu_I, mu_F]
 
         popt, pcov = curve_fit(viscosity, xdata, ydata, p0=(6.0, 1.0))
@@ -713,7 +718,7 @@ class THDCylindrical(BearingElement):
         """
 
         if self.equilibrium_pos is None:
-            self.run(speed)
+            self.run_thermo_hydro_dynamic(speed)
             self.coefficients(speed)
         else:
             if self.method == "lund":
@@ -1961,7 +1966,7 @@ class THDCylindrical(BearingElement):
         )
 
         fig.update_layout(
-            title="Cylindrical Bearing",
+            title="Plain Journal Bearing",
             xaxis=dict(
                 showgrid=False,
                 zeroline=False,
