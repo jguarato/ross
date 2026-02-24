@@ -112,25 +112,6 @@ Significant performance improvements to the ``TiltingPad`` class:
 - Fixed ``determine_eccentricity`` to require load inputs and clarified docstring
 
 
-MCP Server for AI-Assisted Analysis
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-Added ``ross/mcp/`` package providing a Model Context Protocol (MCP) server for AI-assisted rotordynamics analysis. Includes 6 tools:
-
-- ``create_example_rotor`` — load built-in example rotors
-- ``load_rotor_from_file`` — load rotors from saved ``.json`` or ``.toml`` files
-- ``describe_rotor`` — detailed text description of rotor components
-- ``run_modal_analysis`` — eigenvalue analysis at a given speed
-- ``run_campbell_diagram`` — Campbell diagram data over a speed range
-- ``run_unbalance_response`` — unbalance response analysis
-
-.. code-block:: bash
-
-   pip install "ross-rotordynamics[mcp]"
-   ross-mcp          # run via stdio transport
-   python -m ross.mcp  # alternative
-
-
 JSON Save/Load Support
 ^^^^^^^^^^^^^^^^^^^^^^
 
@@ -215,7 +196,6 @@ Fixed numerous typos and improved clarity across documentation files, Jupyter no
 Documentation and Tutorials
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-- Added MCP server tutorial to documentation
 - Added hybrid seal tutorial
 - Updated AMB sensitivity analysis tutorial (tutorial_part_5) with transfer function methods
 - Added harmonic balance tutorial with worked examples

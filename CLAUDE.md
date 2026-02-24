@@ -94,7 +94,6 @@ ROSS (Rotordynamic Open Source Software) is a Python library for rotordynamic an
 
 ```bash
 pip install -e ".[dev]"    # development install with test/lint/docs deps
-pip install -e ".[mcp]"    # MCP server dependencies
 ```
 
 Requires Python >= 3.9.
@@ -106,7 +105,6 @@ pytest ross                 # run from repo root
 ```
 
 - Doctests enabled via `--doctest-modules` (configured in `pytest.ini`)
-- `ross/mcp/` is excluded from pytest collection (`--ignore=ross/mcp`)
 - Tests live in `ross/tests/`, one file per module (e.g. `test_shaft_element.py`, `test_rotor_assembly.py`)
 - **No test classes** — all tests are plain functions (`def test_*():`)
 - Shared setup goes in `@pytest.fixture` functions at the top of the file
@@ -168,14 +166,3 @@ Key modules:
 ### Key Dependencies
 
 numpy, scipy, plotly, pandas, pint, numba, toml
-
-### MCP Server
-
-The `ross/mcp/` package provides an MCP server for AI-assisted rotordynamics analysis.
-
-```bash
-python -m ross.mcp          # run via stdio transport
-ross-mcp                    # CLI entry point
-```
-
-Excluded from pytest. Configured in `.mcp.json` for Claude Code auto-discovery.
