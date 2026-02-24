@@ -67,9 +67,6 @@ dependencies = { file = ["requirements.txt"] }
 version = {attr = "ross.__version__"} 
 
 [project.optional-dependencies]
-    mcp = [
-        "mcp[cli]",
-    ]
     dev = [
         "pytest>=4.6",
         "pytest-cov",
@@ -87,9 +84,6 @@ version = {attr = "ross.__version__"}
         "ruff",
         "sphinx-design",
     ]
-
-[project.scripts]
-ross-mcp = "ross.mcp.server:main"
 
 [project.urls]
 Homepage = "https://ross.readthedocs.io/"
