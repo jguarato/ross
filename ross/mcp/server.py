@@ -11,7 +11,36 @@ import ross as rs
 import numpy as np
 import json
 
-mcp = FastMCP("ROSS Rotordynamics")
+mcp = FastMCP(
+    "ROSS Rotordynamics",
+    instructions="""\
+ROSS is a Python library for rotordynamic analysis (bearings, shafts, disks, seals).
+
+Units convention (all SI internally):
+- Speed: rad/s (use rs.Q_(value, "RPM").to("rad/s").m to convert)
+- Stiffness: N/m
+- Damping: N·s/m
+- Unbalance magnitude: kg·m (NOT kg — this is mass × eccentricity)
+
+Available example rotors (via create_example_rotor):
+- "default": simple rotor with 6 shafts, 2 disks, 2 bearings
+- "compressor": industrial compressor with 91 shafts, 7 disks, 14 bearings/seals
+- "6dof": rotor with 6 degrees of freedom per node (axial stiffness)
+- "damped": rotor with internal material damping
+
+Recommended workflow:
+1. Load or create a rotor (load_rotor_from_file or create_example_rotor)
+2. Describe the rotor to understand its geometry (describe_rotor)
+3. Run analyses (run_modal_analysis, run_campbell_diagram, run_unbalance_response)
+4. Interpret results (natural frequencies, damping ratios, response amplitudes)
+
+For advanced analyses beyond these MCP tools (time response, FRF, static analysis,
+fault analysis, stochastic analysis), use the ROSS Python API directly:
+  import ross as rs
+  rotor = rs.rotor_example()
+  results = rotor.run_static()
+""",
+)
 
 _rotors: dict[str, rs.Rotor] = {}
 
