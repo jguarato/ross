@@ -233,7 +233,20 @@ class BearingElement(Element):
         self.dof_global_index = None
 
     def _process_coefficient(self, coefficient):
-        """Helper function used to process the coefficient data."""
+        """Helper function used to process the coefficient data.
+
+        Parameters
+        ----------
+        coefficient : float, array
+            The coefficient data to be processed.
+
+        Returns
+        -------
+        coefficient : float, array
+            The processed coefficient data.
+        interpolated : callable
+            A callable for interpolating the coefficient data.
+        """
         interpolated = None
 
         if isinstance(coefficient, (int, float)):
@@ -276,7 +289,14 @@ class BearingElement(Element):
         return coefficient, interpolated
 
     def _get_coefficient_list(self, ignore_mass=False):
-        """List with all bearing coefficients as strings"""
+        """List with all bearing coefficients as strings
+
+        Parameters
+        ----------
+        ignore_mass : bool, optional
+            If True, mass coefficients are excluded from the list.
+            Default is False.
+        """
         coefficients = [
             attr.replace("_interpolated", "")
             for attr in self.__dict__.keys()
@@ -1172,8 +1192,6 @@ class BearingFluidFlow(BearingElement):
         Number of points along the Z direction (direction of flow).
     ntheta: int
         Number of points along the direction theta. NOTE: ntheta must be odd.
-    nradius: int
-        Number of points along the direction r.
     length: float
         Length in the Z direction (m).
 
@@ -1270,6 +1288,52 @@ class BearingFluidFlow(BearingElement):
         scale_factor=1.0,
         color="#355d7a",
     ):
+        """
+        Initialize BearingFluidFlow object.
+
+        Parameters
+        ----------
+        n : int
+            The node in which the bearing will be located in the rotor.
+        nz : int
+            Number of points along the Z direction (direction of flow).
+        ntheta : int
+            Number of points along the direction theta. NOTE: ntheta must be odd.
+        length : float
+            Length in the Z direction (m).
+        omega : list
+            List of frequencies (rad/s) used to calculate the coefficients.
+        p_in : float
+            Input Pressure (Pa).
+        p_out : float
+            Output Pressure (Pa).
+        radius_rotor : float
+            Rotor radius (m).
+        radius_stator : float
+            Stator Radius (m).
+        visc : float
+            Viscosity (Pa.s).
+        rho : float
+            Fluid density(Kg/m^3).
+        eccentricity : float, optional
+            Eccentricity (m) is the euclidean distance between rotor and stator centers.
+            The center of the stator is in position (0,0).
+        load : float, optional
+            Load applied to the rotor (N).
+        tag : str, optional
+            A tag to name the element.
+            Default is None.
+        n_link : int, optional
+            Node to which the bearing will connect. If None the bearing is
+            connected to ground.
+            Default is None.
+        scale_factor : float, optional
+            The scale factor is used to scale the bearing drawing.
+            Default is 1.0.
+        color : str, optional
+            A color to be used when the element is represented.
+            Default is '#355d7a'.
+        """
         warnings.warn(
             "BearingFluidFlow is deprecated and will be removed in a future version. "
             "Use PlainJournal for advanced thermo-hydro-dynamic analysis with thermal effects, "
@@ -1413,7 +1477,7 @@ class SealElement(BearingElement):
         Default is None.
     scale_factor : float, optional
         The scale factor is used to scale the bearing drawing.
-        Default is 0.5.
+        Defaults to half the parent BearingElement's scale factor if not provided.
     color : str, optional
         A color to be used when the element is represented.
         Default is "#77ACA2".
@@ -1467,7 +1531,76 @@ class SealElement(BearingElement):
         color="#77ACA2",
         **kwargs,
     ):
+        """
+        Initialize SealElement object.
+
+        Parameters
+        ----------
+        n : int
+            Node which the bearing will be located in
+        kxx : float, array, pint.Quantity
+            Direct stiffness in the x direction (N/m).
+        cxx : float, array, pint.Quantity
+            Direct damping in the x direction (N*s/m).
+        mxx : float, array, pint.Quantity
+            Direct mass in the x direction (kg).
+            Default is 0.
+        kyy : float, array, pint.Quantity, optional
+            Direct stiffness in the y direction (N/m).
+            Default is kxx.
+        cyy : float, array, pint.Quantity, optional
+            Direct damping in the y direction (N*s/m).
+            Default is cxx.
+        myy : float, array, pint.Quantity, optional
+            Direct mass in the y direction (kg).
+            Default is mxx.
+        kxy : float, array, pint.Quantity, optional
+            Cross coupled stiffness in the x direction (N/m).
+            Default is 0.
+        cxy : float, array, pint.Quantity, optional
+            Cross coupled damping in the x direction (N*s/m).
+            Default is 0.
+        mxy : float, array, pint.Quantity, optional
+            Cross coupled mass in the x direction (kg).
+            Default is 0.
+        kyx : float, array, pint.Quantity, optional
+            Cross coupled stiffness in the y direction (N/m).
+            Default is 0.
+        cyx : float, array, pint.Quantity, optional
+            Cross coupled damping in the y direction (N*s/m).
+            Default is 0.
+        myx : float, array, pint.Quantity, optional
+            Cross coupled mass in the y direction (kg).
+            Default is 0.
+        kzz : float, array, pint.Quantity, optional
+            Direct stiffness in the z direction (N/m).
+            Default is 0.
+        czz : float, array, pint.Quantity, optional
+            Direct damping in the z direction (N*s/m).
+            Default is 0.
+        mzz : float, array, pint.Quantity, optional
+            Direct mass in the z direction (kg).
+            Default is 0.
+        seal_leakage : float, optional
+            Seal leakage.
+        frequency : array, pint.Quantity, optional
+            Array with the frequencies (rad/s).
+        tag : str, optional
+            A tag to name the element
+            Default is None.
+        n_link : int, optional
+            Node to which the bearing will connect. If None the bearing is
+            connected to ground.
+            Default is None.
+        scale_factor : float, optional
+            The scale factor is used to scale the bearing drawing.
+            Defaults to half the parent BearingElement's scale factor if not provided.
+        color : str, optional
+            A color to be used when the element is represented.
+            Default is "#77ACA2".
+        """
         self.seal_leakage = seal_leakage
+
 
         super().__init__(
             n=n,
@@ -1633,6 +1766,41 @@ class BallBearingElement(BearingElement):
         color="#355d7a",
         **kwargs,
     ):
+        """
+        Initialize BallBearingElement object.
+
+        Parameters
+        ----------
+        n : int
+            Node which the bearing will be located in.
+        n_balls : float
+            Number of steel spheres in the bearing.
+        d_balls : float
+            Diameter of the steel sphere.
+        fs : float,optional
+            Static bearing loading force.
+        alpha : float, optional
+            Contact angle between the steel sphere and the inner / outer raceway.
+        cxx : float, optional
+            Direct stiffness in the x direction.
+            Default is 1.25*10e-5 * kxx.
+        cyy : float, optional
+            Direct damping in the y direction.
+            Default is 1.25*10e-5 * kyy.
+        tag : str, optional
+            A tag to name the element
+            Default is None.
+        n_link : int, optional
+            Node to which the bearing will connect. If None the bearing is
+            connected to ground.
+            Default is None.
+        scale_factor : float, optional
+            The scale factor is used to scale the bearing drawing.
+            Default is 1.
+        color : str, optional
+            A color to be used when the element is represented.
+            Default is '#355d7a'.
+        """
         self.n_balls = n_balls
         self.d_balls = d_balls
         self.fs = fs
@@ -1813,6 +1981,41 @@ class RollerBearingElement(BearingElement):
         color="#355d7a",
         **kwargs,
     ):
+        """
+        Initialize RollerBearingElement object.
+
+        Parameters
+        ----------
+        n : int
+            Node which the bearing will be located in.
+        n_rollers : float
+            Number of steel spheres in the bearing.
+        l_rollers : float
+            Length of the steel rollers.
+        fs : float, optional
+            Static bearing loading force.
+        alpha : float, optional
+            Contact angle between the steel sphere and the inner / outer raceway.
+        cxx : float, optional
+            Direct stiffness in the x direction.
+            Default is 1.25*10e-5 * kxx.
+        cyy : float, optional
+            Direct damping in the y direction.
+            Default is 1.25*10e-5 * kyy.
+        tag : str, optional
+            A tag to name the element
+            Default is None.
+        n_link : int, optional
+            Node to which the bearing will connect. If None the bearing is
+            connected to ground.
+            Default is None.
+        scale_factor : float, optional
+            The scale factor is used to scale the bearing drawing.
+            Default is 1.
+        color : str, optional
+            A color to be used when the element is represented.
+            Default is '#355d7a'.
+        """
         self.n_rollers = n_rollers
         self.l_rollers = l_rollers
         self.fs = fs
