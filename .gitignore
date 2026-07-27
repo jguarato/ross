@@ -138,3 +138,7 @@ pip-selfcheck.json
 /.claude
 .mcp.json
 uv.lock
+
+### Local Tests ###
+##################
+LocalTests/
