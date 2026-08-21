@@ -812,7 +812,6 @@ class Rotor(object):
             bearing_elements=bearing_elements,
             point_mass_elements=point_mass_elements,
             motor_element=motor_element,
-            tag="Concatenated Rotor",
             **parameters,
         )
 
@@ -1058,6 +1057,7 @@ class Rotor(object):
             "disk_elements",
             "bearing_elements",
             "point_mass_elements",
+            "motor_element",
             "shafts",
         }
         sig = inspect.signature(self.__class__.__init__)
@@ -1181,6 +1181,7 @@ class Rotor(object):
             disk_elements=disk_elements,
             bearing_elements=bearing_elements,
             point_mass_elements=point_mass_elements,
+            motor_element=motor_element,
             **self._init_parameters(),
         )
 
@@ -1235,6 +1236,7 @@ class Rotor(object):
             disk_elements=disk_elements,
             bearing_elements=bearing_elements,
             point_mass_elements=point_mass_elements,
+            motor_element=motor_element,
             **self._init_parameters(),
         )
 
@@ -5920,6 +5922,7 @@ class Rotor(object):
             rotor.disk_elements,
             bearings_seals_rs,
             rotor.point_mass_elements,
+            rotor.motor_element,
             **rotor._init_parameters(),
         )
 
