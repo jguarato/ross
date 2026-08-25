@@ -3060,9 +3060,9 @@ class Rotor(object):
         if speed_is_array:
             accel = np.gradient(speed, t)
 
-            if self.motor_element is not None:  # ATENÇÃO!! MUDAR
+            if self.motor_element is not None and kwargs.get("Ktq", None) is not None:  # ATENÇÃO!! MUDAR
                 Ktq = reduce_matrix(kwargs.get("Ktq"))
-                torque = kwargs.get("torque")
+                torque = kwargs.get("torque", np.zeros_like(speed))
                 kwargs.pop("Ktq")
                 kwargs.pop("torque")
             else:
