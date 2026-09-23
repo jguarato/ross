@@ -4997,9 +4997,17 @@ class Rotor(object):
     ):
         """Run time response with electric motor torque at the motor node.
 
-        The motor is simulated independently and its electric torque is applied
-        to the torsional DOF at motor node. The motor does not contribute to
+        The motor is simulated independently and its electromagnetic torque
+        (electric torque minus load torque) is applied to the torsional DOF
+        at the motor node. Shaft speed is taken from the motor simulation, so
+        the unbalance force is time-varying. The motor does not contribute to
         the rotor global structural matrices.
+
+        Available plotting methods:
+            .plot_1d()
+            .plot_2d()
+            .plot_3d()
+            .plot_dfft()
 
         Parameters
         ----------
@@ -5007,16 +5015,16 @@ class Rotor(object):
             Time array.
         node : list, int
             Nodes where the unbalance is applied.
-        unbalance_magnitude : list, float
-            Unbalance magnitude [kg.m] for each node.
-        unbalance_phase : list, float
-            Unbalance phase [rad] for each node.
+        unbalance_magnitude : list, float, pint.Quantity
+            Unbalance magnitude (kg.m) for each node.
+        unbalance_phase : list, float, pint.Quantity
+            Unbalance phase (rad) for each node.
         drive_mode : str
             Run motor with:
                 - 'DOL': Direct on line start
                 - 'VFD_VF': Variable frequency drive with open-loop V/f adjustment technique
                 - 'VFD_FOC': Variable frequency drive with closed-loop field-oriented control
-        load_torque_entrance_time : float, optional
+        load_torque_entrance_time : float, pint.Quantity, optional
             Time when load torque is applied to the motor shaft [s].
             Default is half the simulation time.
         load_torque_ratio : float, optional
@@ -5024,7 +5032,8 @@ class Rotor(object):
             for the nominal load torque, e.g., a value of 1.0 applies 100% of the
             nominal torque at entrance time. Default is 1.0.
         ac_source_harmonics : dict, optional
-            Configuration for grid harmonic injection. Active only when `drive_mode='DOL'`.
+            Configuration for grid harmonic injection.
+            Active only when `drive_mode='DOL'`.
             Expected keys:
             - 'enable' : bool
                 Enable harmonics.
@@ -5034,7 +5043,8 @@ class Rotor(object):
                 Harmonic amplitudes as percentage of nominal voltage
                 (e.g., [10, 5, 2] for 10%, 5%, and 2%).
         ac_source_unbalances : dict, optional
-            Configuration for three-phase grid unbalance. Active only when `drive_mode='DOL'`.
+            Configuration for three-phase grid unbalance.
+            Active only when `drive_mode='DOL'`.
             Expected keys:
             - 'enable' : bool
                 Enable unbalances.
@@ -5044,48 +5054,58 @@ class Rotor(object):
                 Positive → higher voltage; Negative → lower voltage.
             - 'angle_deviation' : list of float, pint.Quantity
                 Angle deviation per phase (A, B, C) [rad]. Must contain exactly 3 elements.
-        time_step : float, optional
+        time_step : float, pint.Quantity, optional
             Time step [s] for numerical integration of the motor model.
-            Active only when `drive_mode='VFD'`. Default is None.
-        time_ramp : float, optional
+            Active only when `drive_mode` is ``'VFD_VF'`` or ``'VFD_FOC'``.
+            Default is None, which uses the inverter switching period / 200.
+        time_ramp : float, pint.Quantity, optional
             Acceleration ramp time [s] for frequency ramping.
-            Active only when `drive_mode='VFD'`. Default is 0.6667.
+            Active only when `drive_mode` is ``'VFD_VF'`` or ``'VFD_FOC'``.
+            Default is 0.6667.
         frequency_ref : float, pint.Quantity, optional
-            Reference frequency for V/f adjustment technique [rad/s].
-            Active only when `drive_mode='VFD'`.
+            Electrical frequency reference [rad/s]. Used as the V/f reference
+            when `drive_mode='VFD_VF'` and as the synchronous frequency
+            reference when `drive_mode='VFD_FOC'`.
+            Active only when `drive_mode` is ``'VFD_VF'`` or ``'VFD_FOC'``.
             Default is None, which uses half the motor nominal frequency.
         steady_state : bool, optional
-            Simulate the rotor's time response in steady-state (True) or transient (False) regime.
-            Default is True.
+            If True (default), only the last third of the interval after
+            `load_torque_entrance_time` is integrated, skipping the motor
+            start-up and the load transient. If False, the full time array
+            is used.
         F : array, optional
             Force array (needs to have the same number of rows as time array).
             Each column corresponds to a dof and each row to a time.
         verbose : bool, optional
             If True, print the main stages of the simulation. Default is False.
         **kwargs : optional
-            Additional keyword arguments can be passed to define the parameters
-            of the Newmark method if it is used (e.g. gamma, beta, tol, ...).
-            See `ross.utils.newmark` for more details.
-            Other keyword arguments can also be passed to be used in numerical
-            integration (e.g. model_reduction, add_to_RHS).
-            See `Rotor.integrate_system` for more details.
+            Additional keyword arguments passed to the Newmark integrator
+            (e.g. gamma, beta, tol, ...). See `ross.utils.newmark` for more
+            details. Other keyword arguments can also be passed to
+            `Rotor.integrate_system` (e.g. model_reduction, add_to_RHS).
 
         Returns
         -------
-        results : TimeResponseResults
+        results : ross.TimeResponseResults
+            Time response of the rotor. The motor simulation is stored in
+            ``results.motor_results``
+            (:py:class:`ross.MotorResponseResults`).
             For more information on attributes and methods available see:
             :py:class:`ross.TimeResponseResults`
+
+        Notes
+        -----
+        For ``'VFD_VF'`` and ``'VFD_FOC'``, the inverter switching frequency
+        is fixed at 5 kHz.
 
         Examples
         --------
         >>> import ross as rs
-        >>> from ross.units import Q_
+        >>> from ross.probe import Probe
         >>> motor = rs.motor_example()
         >>> rotor = rs.rotor_example().add_elements([motor])
-
         >>> n1 = rotor.disk_elements[0].n
         >>> n2 = rotor.disk_elements[1].n
-
         >>> results = rotor.run_with_motor(
         ...     t=np.linspace(0, 1, 1000),
         ...     node=[n1, n2],
@@ -5093,24 +5113,18 @@ class Rotor(object):
         ...     unbalance_phase=[-np.pi / 2, 0],
         ...     drive_mode="DOL",
         ...     load_torque_entrance_time=0.5,
-        ...     load_torque_ratio=1.0,
-        ...     ac_source_harmonics={
-        ...         "enable": True,
-        ...         "orders": [5, 7, 11],
-        ...         "amplitudes": [10, 5, 2],
-        ...     },
-        ...     ac_source_unbalances={
-        ...         "enable": True,
-        ...         "voltage_percent": [-1, 2, 3],
-        ...         "angle_deviation": Q_([1, 0, -2], "deg"),
-        ...     },
         ... )
         Running direct method
+        >>> fig1 = results.plot_1d(probe=[Probe(n1, 0)])
+        >>> fig2 = results.motor_results.plot_speed()
         """
         if self.motor_element is None:
             raise ValueError("No motor elements found in the rotor.")
 
         motor = self.motor_element
+
+        if load_torque_entrance_time is None:
+            load_torque_entrance_time = t[len(t) // 2]
 
         if F is None:
             F = np.zeros((len(t), self.ndof))
