@@ -313,7 +313,7 @@ class SourceAC:
 
         return vas, vbs, vcs
 
-    def get_operating_state(self, t, *args):
+    def get_current_state(self, t, *args):
         """Get the fundamental frequency and phase voltages of
         the source at time `t`.
 

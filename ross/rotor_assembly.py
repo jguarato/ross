@@ -4987,6 +4987,7 @@ class Rotor(object):
         load_torque_ratio=1.0,
         ac_source_harmonics=None,
         ac_source_unbalances=None,
+        time_step=None,
         time_ramp=0.6667,
         frequency_ref=None,
         steady_state=True,
@@ -5043,6 +5044,9 @@ class Rotor(object):
                 Positive → higher voltage; Negative → lower voltage.
             - 'angle_deviation' : list of float, pint.Quantity
                 Angle deviation per phase (A, B, C) [rad]. Must contain exactly 3 elements.
+        time_step : float, optional
+            Time step [s] for numerical integration of the motor model.
+            Active only when `drive_mode='VFD'`. Default is None.
         time_ramp : float, optional
             Acceleration ramp time [s] for frequency ramping.
             Active only when `drive_mode='VFD'`. Default is 0.6667.
@@ -5130,6 +5134,7 @@ class Rotor(object):
                 load_torque_entrance_time=load_torque_entrance_time,
                 load_torque_ratio=load_torque_ratio,
                 frequency_s=frequency_s,
+                time_step=time_step,
                 time_ramp=time_ramp,
                 frequency_ref=frequency_ref,
             )
@@ -5139,6 +5144,7 @@ class Rotor(object):
                 load_torque_entrance_time=load_torque_entrance_time,
                 load_torque_ratio=load_torque_ratio,
                 frequency_s=frequency_s,
+                time_step=time_step,
                 time_ramp=time_ramp,
                 frequency_ref=frequency_ref,
             )
@@ -5146,11 +5152,10 @@ class Rotor(object):
             raise ValueError("drive_mode must be 'DOL', 'VFD_VF' or 'VFD_FOC'.")
 
         if steady_state:
-            from ross.utils import steady_state_index
-
-            i, _ = steady_state_index(motor_results.sample_at("speed", t))
-            t = t[i:]
-            F = F[i:, :]
+            i = np.where(t >= load_torque_entrance_time)[0]
+            j = int(2 / 3 * len(t[i])) + i[0]
+            t = t[j:]
+            F = F[j:, :]
 
         Te = motor_results.sample_at("electric_torque", t)
         Tl = motor_results.sample_at("load_torque", t)
@@ -5179,6 +5184,7 @@ class Rotor(object):
             print("[2/3] Integrating rotor response... ", end="", flush=True)
 
         results = self.run_time_response(speed, F, t, method="newmark", **kwargs)
+        results.motor_results = motor_results
 
         if verbose:
             print("\033[K[3/3] Simulation finished.", flush=True)
