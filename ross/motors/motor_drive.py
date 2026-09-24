@@ -272,7 +272,9 @@ class SourceAC:
         v = 0.0
 
         if self.harmonics["enable"]:
-            for h, a in zip(self.harmonics["orders"], self.harmonics["amplitudes"]):
+            for h, a in zip(
+                self.harmonics["orders"], self.harmonics["amplitudes"], strict=True
+            ):
                 a_harm += a
 
                 v += (
