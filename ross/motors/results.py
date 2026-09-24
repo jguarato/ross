@@ -84,7 +84,14 @@ class PhaseResults(Results):
 
         self.t_eval = t_eval
 
-    def plot(self, reference_frame="a-b-c", fig=None, n_shown_samples=None, **kwargs):
+    def plot(
+        self,
+        reference_frame="a-b-c",
+        fig=None,
+        time_range=None,
+        n_shown_samples=None,
+        **kwargs,
+    ):
         """Plot data over time in selected reference frame.
 
         Parameters
@@ -94,6 +101,9 @@ class PhaseResults(Results):
             'alpha-beta' (Clarke), 'd-q' (Park). Default is 'a-b-c'.
         fig : plotly.graph_objects.Figure, optional
             Figure to add traces to. If None, creates new figure.
+        time_range : tuple, optional
+            Tuple with (min, max) values for the x-axis range, in seconds.
+            Default is None.
         n_shown_samples : int, optional
             Number of samples to display in the plot. If None, all samples are displayed.
         **kwargs
@@ -140,6 +150,9 @@ class PhaseResults(Results):
             xaxis_title="Time (s)",
             yaxis_title=f"{self.name} ({format_units(self.units)})",
         )
+
+        if time_range is not None:
+            fig.update_xaxes(range=time_range)
 
         fig.update_layout(**kwargs)
 
@@ -412,9 +425,15 @@ class MotorResponseResults(Results):
         return downsample_figure(fig, n_shown_samples or self.n_shown_samples)
 
     def _plot_time(
-        self, result_dict, title, yaxis_title, fig, n_shown_samples=None, **kwargs
+        self,
+        result_dict,
+        title,
+        yaxis_title,
+        fig,
+        time_range=None,
+        n_shown_samples=None,
+        **kwargs,
     ):
-
         for name, signal in result_dict.items():
             fig.add_trace(
                 go.Scatter(
@@ -430,6 +449,9 @@ class MotorResponseResults(Results):
             yaxis_title=yaxis_title,
         )
 
+        if time_range is not None:
+            fig.update_xaxes(range=time_range)
+
         fig.update_layout(**kwargs)
 
         return downsample_figure(fig, n_shown_samples or self.n_shown_samples)
@@ -441,6 +463,7 @@ class MotorResponseResults(Results):
         torque_units="N*m",
         frequency_units="Hz",
         frequency_range=None,
+        time_range=None,
         n_shown_samples=None,
         fig=None,
         **kwargs,
@@ -461,6 +484,9 @@ class MotorResponseResults(Results):
             Frequencies that are not within the range are filtered out and are not plotted.
             It is possible to use a pint Quantity (e.g. Q_((2000, 1000), "RPM")).
             Default is None (no filter).
+        time_range : tuple, optional
+            Tuple with (min, max) values for the x-axis range, in seconds.
+            Default is None.
         n_shown_samples : int, optional
             Number of samples to display in the plot. If None, uses the default value.
         fig : plotly.graph_objects.Figure, optional
@@ -511,6 +537,7 @@ class MotorResponseResults(Results):
         else:
             fig = self._plot_time(
                 **main_inputs,
+                time_range=time_range,
                 **kwargs,
             )
 
@@ -523,6 +550,7 @@ class MotorResponseResults(Results):
         speed_units="RPM",
         frequency_units="Hz",
         frequency_range=None,
+        time_range=None,
         n_shown_samples=None,
         fig=None,
         **kwargs,
@@ -543,6 +571,9 @@ class MotorResponseResults(Results):
             Frequencies that are not within the range are filtered out and are not plotted.
             It is possible to use a pint Quantity (e.g. Q_((2000, 1000), "RPM")).
             Default is None (no filter).
+        time_range : tuple, optional
+            Tuple with (min, max) values for the x-axis range, in seconds.
+            Default is None.
         n_shown_samples : int, optional
             Number of samples to display in the plot. If None, uses the default value.
         fig : plotly.graph_objects.Figure, optional
@@ -589,6 +620,7 @@ class MotorResponseResults(Results):
         else:
             fig = self._plot_time(
                 **main_inputs,
+                time_range=time_range,
                 **kwargs,
             )
 
@@ -600,6 +632,7 @@ class MotorResponseResults(Results):
         reference_frame="a-b-c",
         frequency_units="Hz",
         frequency_range=None,
+        time_range=None,
         n_shown_samples=None,
         fig=None,
         **kwargs,
@@ -621,6 +654,9 @@ class MotorResponseResults(Results):
             Frequencies that are not within the range are filtered out and are not plotted.
             It is possible to use a pint Quantity (e.g. Q_((2000, 1000), "RPM")).
             Default is None (no filter).
+        time_range : tuple, optional
+            Tuple with (min, max) values for the x-axis range, in seconds.
+            Default is None.
         n_shown_samples : int, optional
             Number of samples to display in the plot. If None, uses the default value.
         fig : plotly.graph_objects.Figure, optional
@@ -662,6 +698,7 @@ class MotorResponseResults(Results):
             fig = current.plot(
                 reference_frame=reference_frame,
                 fig=fig,
+                time_range=time_range,
                 n_shown_samples=n_shown_samples,
                 **kwargs,
             )
@@ -673,6 +710,7 @@ class MotorResponseResults(Results):
         domain="time",
         frequency_units="Hz",
         frequency_range=None,
+        time_range=None,
         n_shown_samples=None,
         fig=None,
         **kwargs,
@@ -691,6 +729,9 @@ class MotorResponseResults(Results):
             Frequencies that are not within the range are filtered out and are not plotted.
             It is possible to use a pint Quantity (e.g. Q_((2000, 1000), "RPM")).
             Default is None (no filter).
+        time_range : tuple, optional
+            Tuple with (min, max) values for the x-axis range, in seconds.
+            Default is None.
         n_shown_samples : int, optional
             Number of samples to display in the plot. If None, uses the default value.
         fig : plotly.graph_objects.Figure, optional
@@ -728,7 +769,12 @@ class MotorResponseResults(Results):
                 **kwargs,
             )
         else:
-            fig = voltage.plot(fig=fig, n_shown_samples=n_shown_samples, **kwargs)
+            fig = voltage.plot(
+                fig=fig,
+                time_range=time_range,
+                n_shown_samples=n_shown_samples,
+                **kwargs,
+            )
 
         return fig
 
@@ -737,6 +783,7 @@ class MotorResponseResults(Results):
         domain="time",
         frequency_units="Hz",
         frequency_range=None,
+        time_range=None,
         n_shown_samples=None,
         fig=None,
         **kwargs,
@@ -755,6 +802,9 @@ class MotorResponseResults(Results):
             Frequencies that are not within the range are filtered out and are not plotted.
             It is possible to use a pint Quantity (e.g. Q_((2000, 1000), "RPM")).
             Default is None (no filter).
+        time_range : tuple, optional
+            Tuple with (min, max) values for the x-axis range for time domain, in seconds.
+            Default is None.
         n_shown_samples : int, optional
             Number of samples to display in the plot. If None, uses the default value.
         fig : plotly.graph_objects.Figure, optional
@@ -802,6 +852,7 @@ class MotorResponseResults(Results):
         else:
             fig = self._plot_time(
                 **main_inputs,
+                time_range=time_range,
                 **kwargs,
             )
 
