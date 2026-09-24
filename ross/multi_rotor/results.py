@@ -9,7 +9,7 @@ from copy import deepcopy as copy
 from plotly import graph_objects as go
 from plotly.subplots import make_subplots
 
-from ross.units import Q_, check_units
+from ross.units import Q_, check_units, format_units
 from ross.results import TimeResponseResults
 
 from .utils import compute_dfft
@@ -98,7 +98,7 @@ class BacklashResults(TimeResponseResults):
         "contact_ratio": {
             "name": "Contact Ratio",
             "measure": "Ratio",
-            "units": "--",
+            "units": "dimensionless",
             "repr": "CR",
         },
     }
@@ -195,7 +195,7 @@ class BacklashResults(TimeResponseResults):
         fig.add_trace(go.Scattergl(x=t[::step], y=data[::step], name=repr_))
 
         fig.update_xaxes(title_text="Time (s)")
-        fig.update_yaxes(title_text=f"{measure} ({units})")
+        fig.update_yaxes(title_text=f"{measure} ({format_units(units)})")
         fig.update_layout(title=f"{name} ({repr_})")
 
         return fig
@@ -253,7 +253,7 @@ class BacklashResults(TimeResponseResults):
         )
 
         fig.update_xaxes(title_text="Time (s)")
-        fig.update_yaxes(title_text=f"{measure} ({units})")
+        fig.update_yaxes(title_text=f"{measure} ({format_units(units)})")
         fig.update_layout(title=f"Nominal {name} ({repr_}<sub>nom</sub>)")
 
         return fig
@@ -327,8 +327,8 @@ class BacklashResults(TimeResponseResults):
         if frequency_range is not None:
             fig.update_xaxes(range=[f_min, f_max])
 
-        fig.update_xaxes(title_text=f"Frequency ({frequency_units})")
-        fig.update_yaxes(title_text=f"Amplitude ({units})")
+        fig.update_xaxes(title_text=f"Frequency ({format_units(frequency_units)})")
+        fig.update_yaxes(title_text=f"Amplitude ({format_units(units)})")
         fig.update_layout(title=f"DFT Spectrum ({repr_})")
 
         return fig

@@ -21,7 +21,7 @@ with warnings.catch_warnings():
     warnings.simplefilter("ignore")
     pint.Quantity([])
 
-__all__ = ["Q_", "check_units"]
+__all__ = ["Q_", "check_units", "format_units"]
 
 units = {
     "E": "N/m**2",
@@ -197,3 +197,44 @@ def check_units(func):
         return func(*base_unit_args, **base_unit_kwargs)
 
     return inner
+
+
+def format_units(unit):
+    """Format a ``check_units`` unit string for a plot axis label.
+
+    Parameters
+    ----------
+    unit : str
+        Unit string as stored in the ``units`` dictionary used by
+        ``check_units``, for example ``"N/m**2"`` or ``"radian/second"``.
+        Any unit string accepted by pint also works.
+
+    Returns
+    -------
+    str
+        Compact label with short unit names, unicode exponents and a
+        middle dot for multiplication.
+
+    Examples
+    --------
+    >>> format_units("N/m**2")
+    'N/m²'
+    >>> format_units("kg*m**2")
+    'kg·m²'
+    >>> format_units("N*m")
+    'N·m'
+    >>> format_units("radian/second")
+    'rad/s'
+    >>> format_units("meter")
+    'm'
+    >>> format_units("dimensionless")
+    '--'
+    """
+    if unit == "dimensionless":
+        return "--"
+
+    return ureg.formatter.format_unit(
+        Q_(1, unit).units,
+        "~P",
+        sort_func=lambda items, _registry: items,
+    )
