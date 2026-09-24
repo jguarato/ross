@@ -7,10 +7,9 @@ import plotly.graph_objects as go
 from scipy.interpolate import interp1d
 import numpy as np
 
-from plotly_resampler import FigureResampler
-
 from ross.results import Results
-from ross.units import Q_, check_units
+from ross.units import Q_, check_units, format_units
+from ross.utils import downsample_figure
 from .utils import windowed_dfft
 
 
@@ -139,16 +138,12 @@ class PhaseResults(Results):
         fig.update_layout(
             title=f"Phase {self.name}s",
             xaxis_title="Time (s)",
-            yaxis_title=f"{self.name} ({self.units})",
+            yaxis_title=f"{self.name} ({format_units(self.units)})",
         )
 
         fig.update_layout(**kwargs)
 
-        n_samples = n_shown_samples or self.n_shown_samples
-        if n_samples is not None:
-            fig = FigureResampler(fig, default_n_shown_samples=n_samples)
-
-        return fig
+        return downsample_figure(fig, n_shown_samples or self.n_shown_samples)
 
     @check_units
     def plot_dfft(
@@ -233,8 +228,8 @@ class PhaseResults(Results):
 
         fig.update_layout(
             title=f"Phase {self.name}s",
-            xaxis_title=f"Frequency ({frequency_units})",
-            yaxis_title=f"{self.name} ({self.units})",
+            xaxis_title=f"Frequency ({format_units(frequency_units)})",
+            yaxis_title=f"{self.name} ({format_units(self.units)})",
         )
 
         if frequency_range is not None:
@@ -244,11 +239,7 @@ class PhaseResults(Results):
 
         fig.update_layout(**kwargs)
 
-        n_samples = n_shown_samples or self.n_shown_samples
-        if n_samples is not None and n_samples < len(fig.data[0].x):
-            fig = FigureResampler(fig, default_n_shown_samples=n_samples)
-
-        return fig
+        return downsample_figure(fig, n_shown_samples or self.n_shown_samples)
 
 
 class MotorResponseResults(Results):
@@ -407,7 +398,7 @@ class MotorResponseResults(Results):
 
         fig.update_layout(
             title=title,
-            xaxis_title=f"Frequency ({frequency_units})",
+            xaxis_title=f"Frequency ({format_units(frequency_units)})",
             yaxis_title=yaxis_title,
         )
 
@@ -418,11 +409,7 @@ class MotorResponseResults(Results):
 
         fig.update_layout(**kwargs)
 
-        n_samples = n_shown_samples or self.n_shown_samples
-        if n_samples is not None and n_samples < len(fig.data[0].x):
-            fig = FigureResampler(fig, default_n_shown_samples=n_samples)
-
-        return fig
+        return downsample_figure(fig, n_shown_samples or self.n_shown_samples)
 
     def _plot_time(
         self, result_dict, title, yaxis_title, fig, n_shown_samples=None, **kwargs
@@ -445,11 +432,7 @@ class MotorResponseResults(Results):
 
         fig.update_layout(**kwargs)
 
-        n_samples = n_shown_samples or self.n_shown_samples
-        if n_samples is not None:
-            fig = FigureResampler(fig, default_n_shown_samples=n_samples)
-
-        return fig
+        return downsample_figure(fig, n_shown_samples or self.n_shown_samples)
 
     @check_units
     def plot_torque(
@@ -512,7 +495,7 @@ class MotorResponseResults(Results):
                 "Load Torque": Q_(self.load_torque, "N*m").to(torque_units).m,
             },
             title="Motor operation: Electromagnetic Torque and Load Torque",
-            yaxis_title=f"Torque ({torque_units})",
+            yaxis_title=f"Torque ({format_units(torque_units)})",
             fig=fig,
             n_shown_samples=n_shown_samples,
         )
@@ -591,7 +574,7 @@ class MotorResponseResults(Results):
                 "Shaft Speed": Q_(self.speed, "rad/s").to(speed_units).m,
             },
             title="Motor operation: Shaft Speed",
-            yaxis_title=f"Speed ({speed_units})",
+            yaxis_title=f"Speed ({format_units(speed_units)})",
             fig=fig,
             n_shown_samples=n_shown_samples,
         )
