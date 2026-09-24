@@ -1204,23 +1204,25 @@ def _run_motor_time_open_loop(
         Lds, Lqs, Ldr, Lqr, wr = rk4_step(
             motor_ode_system,
             dt,
-            [Lds, Lqs, Ldr, Lqr, wr],
-            [
-                vds,
-                vqs,
-                vdr,
-                vqr,
-                w_shaft,
-                Tl,
-                c,
-                n_poles,
-                Rs,
-                a,
-                b,
-                Rr,
-                viscosity_coeff,
-                Ip,
-            ],
+            np.array([Lds, Lqs, Ldr, Lqr, wr]),
+            np.array(
+                [
+                    vds,
+                    vqs,
+                    vdr,
+                    vqr,
+                    w_shaft,
+                    Tl,
+                    c,
+                    n_poles,
+                    Rs,
+                    a,
+                    b,
+                    Rr,
+                    viscosity_coeff,
+                    Ip,
+                ]
+            ),
         )
 
         speed[step] = wr
@@ -1325,23 +1327,25 @@ def _run_motor_time_closed_loop(
         Lds, Lqs, Ldr, Lqr, wr = rk4_step(
             motor_ode_system,
             dt,
-            [Lds, Lqs, Ldr, Lqr, wr],
-            [
-                vds,
-                vqs,
-                vdr,
-                vqr,
-                w_shaft,
-                Tl,
-                c,
-                n_poles,
-                Rs,
-                a,
-                b,
-                Rr,
-                viscosity_coeff,
-                Ip,
-            ],
+            np.array([Lds, Lqs, Ldr, Lqr, wr]),
+            np.array(
+                [
+                    vds,
+                    vqs,
+                    vdr,
+                    vqr,
+                    w_shaft,
+                    Tl,
+                    c,
+                    n_poles,
+                    Rs,
+                    a,
+                    b,
+                    Rr,
+                    viscosity_coeff,
+                    Ip,
+                ]
+            ),
         )
 
         speed[step] = wr

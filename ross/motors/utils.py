@@ -228,14 +228,14 @@ def rk4_step(func, dt, y0, args):
         followed by additional arguments, i.e. ``func(*y, *args)``.
     dt : float
         Time step size [s].
-    y0 : array-like
+    y0 : np.ndarray
         Initial state vector at the beginning of the step.
-    args : tuple
+    args : np.ndarray
         Additional arguments passed to ``func``.
 
     Returns
     -------
-    tuple
+    np.ndarray
         Updated state vector after one RK4 step.
 
     Examples
@@ -251,16 +251,12 @@ def rk4_step(func, dt, y0, args):
     >>> y1[0]  # doctest: +ELLIPSIS
     1.105...
     """
-    y = np.asarray(y0)
+    k1 = func(y0, args)
 
-    k1 = func(y, args)
+    k2 = func(y0 + 0.5 * dt * k1, args)
 
-    k2 = func(y + 0.5 * dt * k1, args)
+    k3 = func(y0 + 0.5 * dt * k2, args)
 
-    k3 = func(y + 0.5 * dt * k2, args)
+    k4 = func(y0 + dt * k3, args)
 
-    k4 = func(y + dt * k3, args)
-
-    y += dt * (k1 + 2 * k2 + 2 * k3 + k4) / 6
-
-    return y
+    return y0 + dt * (k1 + 2 * k2 + 2 * k3 + k4) / 6
