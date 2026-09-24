@@ -88,7 +88,7 @@ class SourceAC:
     >>> np.round([va, vb, vc], 2)
     array([ 299.36,  -45.45, -242.91])
 
-    >>> f, va, vb, vc = src.get_operating_state(t=0.5)
+    >>> f, va, vb, vc = src.get_current_state(t=0.5)
     >>> np.round(f, 2)
     376.99
     """
