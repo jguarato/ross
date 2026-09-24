@@ -5311,7 +5311,7 @@ class Rotor(object):
         ...    load_torque=0,
         ...    model_reduction={"num_modes": 12},  # Pseudo-modal method
         ... )
-        Running with model reduction: pseudomodal
+        Running with model reduction: pseudomodal...
         >>> probe1 = Probe(14, 0)
         >>> probe2 = Probe(22, 0)
         >>> fig1 = results.plot_1d([probe1, probe2])
@@ -5438,7 +5438,7 @@ class Rotor(object):
         ...    t=np.arange(0, 0.5, 0.0001),
         ...    model_reduction={"num_modes": 12},  # Pseudo-modal method
         ... )
-        Running with model reduction: pseudomodal
+        Running with model reduction: pseudomodal...
         >>> probe1 = Probe(14, 0)
         >>> probe2 = Probe(22, 0)
         >>> fig1 = results.plot_1d([probe1, probe2])
@@ -5541,7 +5541,7 @@ class Rotor(object):
         ...    t=np.arange(0, 0.5, 0.0001),
         ...    model_reduction={"num_modes": 12},  # Pseudo-modal method
         ... )
-        Running with model reduction: pseudomodal
+        Running with model reduction: pseudomodal...
         >>> probe1 = Probe(14, 0)
         >>> probe2 = Probe(22, 0)
         >>> fig1 = results.plot_1d([probe1, probe2])
