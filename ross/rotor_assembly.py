@@ -3118,7 +3118,7 @@ class Rotor(object):
         ...     F[:, 6 * n + 0] = m * np.cos((speed * t))
         ...     F[:, 6 * n + 1] = (m-5) * np.sin((speed * t))
         >>> response = rotor.run_time_response(speed, F, t, method = "newmark")
-        Running direct method
+        Running direct method...
         >>> magnetic_bearings = [brg for brg in rotor.bearing_elements if isinstance(brg, rs.bearing_seal_element.MagneticBearingElement)]
         >>> amb_data = {key: np.zeros((len(t), len(magnetic_bearings) * 2)) for key in ["x_amb", "v_amb", "F_x", "F_v", "I"]}
         >>> magnetic_force = rotor.magnetic_bearing_controller(step, magnetic_bearings, dt, response.yout[-1,:], amb_data=amb_data)
@@ -3327,7 +3327,7 @@ class Rotor(object):
         >>> F[:, rotor.number_dof * node + 0] = 10 * np.cos(2 * t)
         >>> F[:, rotor.number_dof * node + 1] = 10 * np.sin(2 * t)
         >>> t, yout, xout = rotor.integrate_system(speed, F, t)
-        Running direct method
+        Running direct method...
         >>> yout[:, rotor.number_dof * node + 1] # doctest: +ELLIPSIS
         array([0.00000000e+00, 2.07136253e-10, 7.80557630e-10, ...,
                1.21845368e-07, 1.21954345e-07, 1.22062832e-07])
@@ -5114,7 +5114,7 @@ class Rotor(object):
         ...     drive_mode="DOL",
         ...     load_torque_entrance_time=0.5,
         ... )
-        Running direct method
+        Running direct method...
         >>> fig1 = results.plot_1d(probe=[Probe(n1, 0)])
         >>> fig2 = results.motor_results.plot_speed()
         """
