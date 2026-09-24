@@ -1786,3 +1786,31 @@ def downsample_figure(fig, n_out):
         trace.y = y[idx]
 
     return fig
+
+
+def limit_data_range(x, y, range_limits):
+    """Limit the range of the x and y data to the given range limits.
+    Parameters
+    ----------
+    x : numpy.ndarray
+        The x data.
+    y : numpy.ndarray
+        The y data.
+    range_limits : tuple
+        The range limits.
+
+    Returns
+    -------
+    tuple
+        The limited x and y data.
+    """
+    if range_limits is None:
+        return x, y
+
+    delta = 0.01 * (range_limits[1] - range_limits[0])
+    mask = (x >= range_limits[0] - delta) & (x <= range_limits[1] + delta)
+
+    if not np.any(mask):
+        raise ValueError(f"No data within the range {range_limits}.")
+
+    return x[mask], y[mask]

@@ -9,7 +9,7 @@ import numpy as np
 
 from ross.results import Results
 from ross.units import Q_, check_units, format_units
-from ross.utils import downsample_figure
+from ross.utils import limit_data_range, downsample_figure
 from .utils import windowed_dfft
 
 
@@ -132,10 +132,12 @@ class PhaseResults(Results):
 
         for axis in reference_frame:
             try:
+                t, amp = limit_data_range(self.t, self.data[axis], time_range)
+
                 fig.add_trace(
                     go.Scatter(
-                        x=self.t,
-                        y=self.data[axis],
+                        x=t,
+                        y=amp,
                         name=f"{self.data_type}<sub>{self._REFERENCE_MAP[axis]}</sub>",
                     )
                 )
@@ -215,21 +217,14 @@ class PhaseResults(Results):
         dt = self.t[1] - self.t[0]
 
         for axis in reference_frame:
-            freq, mag = windowed_dfft(self.data[axis], dt)
-
-            if frequency_range is not None:
-                delta = 0.01 * (frequency_range[1] - frequency_range[0])
-                mask = (freq >= frequency_range[0] - delta) & (
-                    freq <= frequency_range[1] + delta
-                )
-                mag = mag[mask]
-                freq = freq[mask]
+            freq, amp = windowed_dfft(self.data[axis], dt)
+            freq, amp = limit_data_range(freq, amp, frequency_range)
 
             try:
                 fig.add_trace(
                     go.Scatter(
                         x=Q_(freq, "Hz").to(frequency_units).m,
-                        y=mag,
+                        y=amp,
                         name=f"{self.data_type}<sub>{self._REFERENCE_MAP[axis]}</sub>",
                     )
                 )
@@ -247,7 +242,7 @@ class PhaseResults(Results):
 
         if frequency_range is not None:
             fig.update_xaxes(
-                range=[min_freq, max_freq], rangeslider=dict(visible=False)
+                range=(min_freq, max_freq), rangeslider=dict(visible=False)
             )
 
         fig.update_layout(**kwargs)
@@ -391,20 +386,13 @@ class MotorResponseResults(Results):
         dt = self.t[1] - self.t[0]
 
         for name, signal in result_dict.items():
-            freq, mag = windowed_dfft(signal, dt)
-
-            if frequency_range is not None:
-                delta = 0.01 * (frequency_range[1] - frequency_range[0])
-                mask = (freq >= frequency_range[0] - delta) & (
-                    freq <= frequency_range[1] + delta
-                )
-                mag = mag[mask]
-                freq = freq[mask]
+            freq, amp = windowed_dfft(signal, dt)
+            freq, amp = limit_data_range(freq, amp, frequency_range)
 
             fig.add_trace(
                 go.Scatter(
                     x=Q_(freq, "Hz").to(frequency_units).m,
-                    y=mag,
+                    y=amp,
                     name=name,
                 )
             )
@@ -417,7 +405,7 @@ class MotorResponseResults(Results):
 
         if frequency_range is not None:
             fig.update_xaxes(
-                range=[min_freq, max_freq], rangeslider=dict(visible=False)
+                range=(min_freq, max_freq), rangeslider=dict(visible=False)
             )
 
         fig.update_layout(**kwargs)
@@ -435,10 +423,12 @@ class MotorResponseResults(Results):
         **kwargs,
     ):
         for name, signal in result_dict.items():
+            t, amp = limit_data_range(self.t, signal, time_range)
+
             fig.add_trace(
                 go.Scatter(
-                    x=self.t,
-                    y=signal,
+                    x=t,
+                    y=amp,
                     name=name,
                 )
             )
