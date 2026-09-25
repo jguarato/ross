@@ -47,7 +47,7 @@ class SourceAC:
     unbalance_enable : bool, optional
         Whether to enable unbalances. Default is False.
     unbalance_voltage_percent : list of float, optional
-        Voltage magnitude deviation per phase (A, B, C) relative to nominal [%].
+        Voltage magnitude deviation per phase (A, B, C) relative to rated [%].
         Must contain exactly 3 elements.
         Positive → higher voltage; Negative → lower voltage.
     unbalance_angle_deviation : list of float, pint.Quantity, optional
@@ -210,7 +210,7 @@ class SourceAC:
         Parameters
         ----------
         voltage_percent : list of float
-            Voltage magnitude deviation per phase (A, B, C) relative to nominal [%].
+            Voltage magnitude deviation per phase (A, B, C) relative to rated [%].
             Must contain exactly 3 elements. Positive → higher voltage; Negative → lower voltage.
         angle_deviation : list of float, pint.Quantity
             Angle deviation per phase (A, B, C) [rad].
@@ -377,23 +377,23 @@ class Inverter:
         DC link voltage [V].
     frequency_s : float or pint.Quantity
         IGBT switching frequency [rad/s].
-    voltage_nom : float
-        Nominal line voltage [V].
-    frequency_nom : float or pint.Quantity
-        Nominal operating frequency [rad/s].
+    voltage_rated : float
+        Rated line voltage [V].
+    frequency_rated : float or pint.Quantity
+        Rated operating frequency [rad/s].
     time_ramp : float, optional
         Acceleration ramp time [s]. Default is 0.6667.
     frequency_ref : float or pint.Quantity, optional
         Reference electrical frequency [rad/s]. Default is half the
-        nominal frequency.
+        rated frequency.
     """
 
     def __init__(
         self,
         voltage_dc,
         frequency_s,
-        voltage_nom,
-        frequency_nom,
+        voltage_rated,
+        frequency_rated,
         time_ramp=0.6667,
         frequency_ref=None,
     ):
@@ -402,10 +402,10 @@ class Inverter:
         self.frequency_s = frequency_s
         self.Ts = 2 * np.pi / frequency_s
 
-        self.voltage_nom = float(voltage_nom)
-        self.frequency_nom = float(frequency_nom)
+        self.voltage_rated = float(voltage_rated)
+        self.frequency_rated = float(frequency_rated)
         self.time_ramp = float(time_ramp)
-        self.frequency_ref = float(frequency_ref or frequency_nom / 2)
+        self.frequency_ref = float(frequency_ref or frequency_rated / 2)
 
         # Switching SVPWM table, shared by every inverter implemented in this module.
         # Each column represents the states of the upper switches for the space
@@ -569,15 +569,15 @@ class InverterVF(Inverter):
         DC link voltage [V].
     frequency_s : float or pint.Quantity
         IGBT switching frequency [rad/s].
-    voltage_nom : float
-        Nominal line voltage [V].
-    frequency_nom : float or pint.Quantity
-        Nominal operating frequency [rad/s].
+    voltage_rated : float
+        Rated line voltage [V].
+    frequency_rated : float or pint.Quantity
+        Rated operating frequency [rad/s].
     time_ramp : float, optional
         Acceleration ramp time [s] for frequency ramping. Default is 0.6667.
     frequency_ref : float or pint.Quantity, optional
         Reference frequency for V/f adjustment [rad/s]. Default is half
-        the nominal frequency.
+        the rated frequency.
 
     References
     ----------
@@ -589,7 +589,7 @@ class InverterVF(Inverter):
 
     >>> inverter = InverterVF(
     ...     voltage_dc=300, frequency_s=Q_(5000, "Hz"),
-    ...     voltage_nom=220, frequency_nom=Q_(60, "Hz"),
+    ...     voltage_rated=220, frequency_rated=Q_(60, "Hz"),
     ...     time_ramp=1, frequency_ref=Q_(90, "Hz"),
     ... )
 
@@ -616,8 +616,8 @@ class InverterVF(Inverter):
         self,
         voltage_dc,
         frequency_s,
-        voltage_nom,
-        frequency_nom,
+        voltage_rated,
+        frequency_rated,
         time_ramp=0.6667,
         frequency_ref=None,
     ):
@@ -625,14 +625,14 @@ class InverterVF(Inverter):
         super().__init__(
             voltage_dc,
             frequency_s,
-            voltage_nom,
-            frequency_nom,
+            voltage_rated,
+            frequency_rated,
             time_ramp,
             frequency_ref,
         )
 
-        # Nominal phase voltage peak value
-        self.voltage_phase_peak_nom = (voltage_nom / np.sqrt(3)) * np.sqrt(2)
+        # Rated phase voltage peak value
+        self.voltage_phase_peak_rated = (voltage_rated / np.sqrt(3)) * np.sqrt(2)
 
         self.f_0 = 0.0
 
@@ -650,13 +650,13 @@ class InverterVF(Inverter):
         Returns
         -------
         Vp : float
-            Peak phase voltage [V], saturated at nominal value.
+            Peak phase voltage [V], saturated at rated value.
         """
         # Peak value of the phase voltage proportional to the V/f ratio
-        Vp = self.voltage_phase_peak_nom * (frequency / self.frequency_nom)
+        Vp = self.voltage_phase_peak_rated * (frequency / self.frequency_rated)
 
-        # Saturation at the nominal value
-        Vp = min(Vp, self.voltage_phase_peak_nom)
+        # Saturation at the rated value
+        Vp = min(Vp, self.voltage_phase_peak_rated)
         return Vp
 
     def get_phase_voltages(self, t, frequency, theta_0):
@@ -718,7 +718,7 @@ class InverterVF(Inverter):
         if frequency_ref is None:
             frequency_ref = self.frequency_ref
 
-        fref = min(max(frequency_ref, 0), self.frequency_nom)
+        fref = min(max(frequency_ref, 0), self.frequency_rated)
 
         f_curr = self.f_0 + fref / self.time_ramp * t
         f_curr = min(f_curr, fref)
@@ -776,26 +776,26 @@ class InverterFOC(Inverter):
         DC link voltage [V].
     frequency_s : float or pint.Quantity
         IGBT switching frequency [rad/s].
-    voltage_nom : float
-        Nominal line voltage [V].
-    frequency_nom : float or pint.Quantity
-        Nominal (synchronous) electrical frequency [rad/s].
+    voltage_rated : float
+        Rated line voltage [V].
+    frequency_rated : float or pint.Quantity
+        Rated (synchronous) electrical frequency [rad/s].
     n_poles : int
         Number of machine poles.
-    speed_nom : float or pint.Quantity
-        Nominal mechanical speed [rad/s].
-    torque_nom : float
-        Nominal load torque [N.m].
+    speed_rated : float or pint.Quantity
+        Rated mechanical speed [rad/s].
+    torque_rated : float
+        Rated load torque [N.m].
     stator_resistance : float
         Stator resistance [Ohm].
     rotor_resistance : float
         Rotor resistance [Ohm].
     stator_reactance : float
-        Stator leakage reactance at nominal frequency [Ohm].
+        Stator leakage reactance at rated frequency [Ohm].
     rotor_reactance : float
-        Rotor leakage reactance at nominal frequency [Ohm].
+        Rotor leakage reactance at rated frequency [Ohm].
     mutual_reactance : float
-        Magnetizing (mutual) reactance at nominal frequency [Ohm].
+        Magnetizing (mutual) reactance at rated frequency [Ohm].
     Ip_motor : float
         Rotor polar moment of inertia [kg.m²].
     time_ramp : float, optional
@@ -803,7 +803,7 @@ class InverterFOC(Inverter):
         Default is 1.
     frequency_ref : float or pint.Quantity, optional
         Synchronous electrical frequency reference [rad/s]. Default is
-        half the nominal frequency.
+        half the rated frequency.
 
     Notes
     -----
@@ -821,11 +821,11 @@ class InverterFOC(Inverter):
         self,
         voltage_dc,
         frequency_s,
-        voltage_nom,
-        frequency_nom,
+        voltage_rated,
+        frequency_rated,
         n_poles,
-        speed_nom,
-        torque_nom,
+        speed_rated,
+        torque_rated,
         stator_resistance,
         rotor_resistance,
         stator_reactance,
@@ -839,48 +839,48 @@ class InverterFOC(Inverter):
         super().__init__(
             voltage_dc,
             frequency_s,
-            voltage_nom,
-            frequency_nom,
+            voltage_rated,
+            frequency_rated,
             time_ramp,
             frequency_ref,
         )
 
         self.np_pairs = n_poles / 2
-        self.speed_nom = float(speed_nom)
+        self.speed_rated = float(speed_rated)
 
         self.Rs = float(stator_resistance)
         self.Rr = float(rotor_resistance)
 
-        Lls = float(stator_reactance) / self.frequency_nom
-        Llr = float(rotor_reactance) / self.frequency_nom
-        self.Lm = float(mutual_reactance) / self.frequency_nom
+        Lls = float(stator_reactance) / self.frequency_rated
+        Llr = float(rotor_reactance) / self.frequency_rated
+        self.Lm = float(mutual_reactance) / self.frequency_rated
         self.Lss = Lls + self.Lm
         self.Lrr = Llr + self.Lm
 
         self.taur = self.Lrr / self.Rr
 
         # Modified equivalent circuit rotor resistance
-        nominal_slip = 1 - self.np_pairs * self.speed_nom / self.frequency_nom
-        Rr_eq = (self.Rr * (self.Lm / self.Lrr) ** 2) / nominal_slip
+        rated_slip = 1 - self.np_pairs * self.speed_rated / self.frequency_rated
+        Rr_eq = (self.Rr * (self.Lm / self.Lrr) ** 2) / rated_slip
 
         # Auxiliary variables for calculating Zeq
         Ls1 = self.Lss - (self.Lm**2 / self.Lrr)
         Lm1 = (self.Lm**2) / self.Lrr
 
         # Equivalent impedance
-        Zeq = (self.Rs + 1j * self.frequency_nom * Ls1) + (
-            1j * self.frequency_nom * Lm1 * Rr_eq
-        ) / (1j * self.frequency_nom * Lm1 + Rr_eq)
+        Zeq = (self.Rs + 1j * self.frequency_rated * Ls1) + (
+            1j * self.frequency_rated * Lm1 * Rr_eq
+        ) / (1j * self.frequency_rated * Lm1 + Rr_eq)
 
-        Vpeak = self.voltage_nom * (np.sqrt(2) / np.sqrt(3))
+        Vpeak = self.voltage_rated * (np.sqrt(2) / np.sqrt(3))
         Is = Vpeak / Zeq
 
         # Modified equivalent circuit voltage Er
-        Er = Vpeak - (self.Rs + 1j * self.frequency_nom * Ls1) * Is
-        self.ids_ref = abs(Er) / (self.frequency_nom * Lm1)
+        Er = Vpeak - (self.Rs + 1j * self.frequency_rated * Ls1) * Is
+        self.ids_ref = abs(Er) / (self.frequency_rated * Lm1)
 
-        # Nominal stator current magnitude
-        self.Is_nom = abs(Is)
+        # Rated stator current magnitude
+        self.Is_rated = abs(Is)
 
         # PI controller gains (bandwidth method)
         BWp_iqs = frequency_s / 8
@@ -889,7 +889,7 @@ class InverterFOC(Inverter):
         BWp_w = BWi_ids / 8
         BWi_w = BWp_w / 8
 
-        KL = float(torque_nom) / (self.np_pairs * self.speed_nom)  # Load constant
+        KL = float(torque_rated) / (self.np_pairs * self.speed_rated)  # Load constant
         J = float(Ip_motor)
 
         # Proportional and integral controller gains
@@ -971,7 +971,7 @@ class InverterFOC(Inverter):
             frequency_ref = self.frequency_ref
 
         wref_mech = frequency_ref / self.np_pairs
-        wref = min(max(wref_mech, 0), self.speed_nom)
+        wref = min(max(wref_mech, 0), self.speed_rated)
 
         w_ramp = wref / self.time_ramp * t
         w_ramp = min(w_ramp, wref)
@@ -1020,7 +1020,7 @@ class InverterFOC(Inverter):
         iqs_ref_unsat = u_prop + u_int
 
         # Torque-producing (q-axis) current limit
-        iqs_max = 3.0 * self.Is_nom
+        iqs_max = 3.0 * self.Is_rated
         iqs_ref = np.clip(iqs_ref_unsat, -iqs_max, iqs_max)
 
         # Slip frequency

@@ -38,12 +38,12 @@ class MotorElement(Element):
     ----------
     n : int
         Node at which the torque is applied to the shaft.
-    power_nom : float, pint.Quantity
-        Nominal power [W].
-    voltage_nom : float
-        Nominal voltage [V].
-    speed_nom : float, pint.Quantity
-        Nominal machine speed [rad/s].
+    power_rated : float, pint.Quantity
+        Rated power [W].
+    voltage_rated : float
+        Rated voltage [V].
+    speed_rated : float, pint.Quantity
+        Rated machine speed [rad/s].
     stator_resistance : float
         Stator resistance [Ohm].
     rotor_resistance : float
@@ -56,8 +56,8 @@ class MotorElement(Element):
         Mutual reactance at frequency [Ohm].
     Ip_motor : float, pint.Quantity
         Polar Moment of inertia related to motor axis [kg.m²].
-    frequency_nom : float, optional, pint.Quantity
-        Nominal frequency [rad/s].
+    frequency_rated : float, optional, pint.Quantity
+        Rated frequency [rad/s].
         Default is 60 Hz.
     n_poles : int, optional
         Number of machine's poles.
@@ -70,10 +70,10 @@ class MotorElement(Element):
         Default is 0.
     voltage_net : float, optional
         Electrical tension of Power Supply [V].
-        Default is None, which adopts the motor's nominal voltage (`voltage_nom`).
+        Default is None, which adopts the motor's rated voltage (`voltage_rated`).
     frequency_net : float, optional, pint.Quantity
         Electrical frequency of Power Supply [rad/s].
-        Default is None, which adopts the motor's nominal frequency (`frequency_nom`).
+        Default is None, which adopts the motor's rated frequency (`frequency_rated`).
     initial_angle_net : float, optional, pint.Quantity
         Initial angular phase frequency of Power Supply [rad].
         Default is 20 degrees.
@@ -113,10 +113,10 @@ class MotorElement(Element):
     >>> motor = MotorElement(
     ...     n=0,
     ...     tag=None,
-    ...     power_nom=Q_(1.5, "cv"),
-    ...     voltage_nom=127,
-    ...     speed_nom=Q_(1725, "RPM"),
-    ...     frequency_nom=Q_(60.0, "Hz"),
+    ...     power_rated=Q_(1.5, "cv"),
+    ...     voltage_rated=127,
+    ...     speed_rated=Q_(1725, "RPM"),
+    ...     frequency_rated=Q_(60.0, "Hz"),
     ...     n_poles=4,
     ...     stator_resistance=2.5,
     ...     rotor_resistance=1.8,
@@ -130,7 +130,7 @@ class MotorElement(Element):
     ...     frequency_net=Q_(60.0, "Hz"),
     ... )
 
-    >>> motor.power_nom
+    >>> motor.power_rated
     1103.248125
     """
 
@@ -138,16 +138,16 @@ class MotorElement(Element):
     def __init__(
         self,
         n,
-        power_nom,
-        voltage_nom,
-        speed_nom,
+        power_rated,
+        voltage_rated,
+        speed_rated,
         stator_resistance,
         rotor_resistance,
         stator_reactance,
         rotor_reactance,
         mutual_reactance,
         Ip_motor,
-        frequency_nom=None,
+        frequency_rated=None,
         n_poles=4,
         viscosity_coeff=0.0,
         Ip_load=0.0,
@@ -161,10 +161,10 @@ class MotorElement(Element):
         color="#001969",
     ):
 
-        # Numerical Validation of NOMP entries
-        self.power_nom = float(power_nom)
-        self.voltage_nom = float(voltage_nom)
-        self.speed_nom = float(speed_nom)
+        # Numerical Validation of RATP entries
+        self.power_rated = float(power_rated)
+        self.voltage_rated = float(voltage_rated)
+        self.speed_rated = float(speed_rated)
         self.n_poles = int(n_poles)
         self.stator_resistance = float(stator_resistance)
         self.rotor_resistance = float(rotor_resistance)
@@ -175,24 +175,24 @@ class MotorElement(Element):
         self.viscosity_coeff = float(viscosity_coeff)
         self.Ip_load = float(Ip_load)
 
-        if frequency_nom is None:
-            self.frequency_nom = Q_(60.0, "Hz").to("rad/s").m
+        if frequency_rated is None:
+            self.frequency_rated = Q_(60.0, "Hz").to("rad/s").m
         else:
-            self.frequency_nom = float(frequency_nom)
+            self.frequency_rated = float(frequency_rated)
 
-        self.frequency_ref = self.frequency_nom
+        self.frequency_ref = self.frequency_rated
 
         # Numerical Validation of SCIP entries
         self.short_circuit_ratio_net = float(short_circuit_ratio_net)
         self.XR_ratio_net = float(XR_ratio_net)
 
         if voltage_net is None:
-            self.voltage_net = self.voltage_nom
+            self.voltage_net = self.voltage_rated
         else:
             self.voltage_net = float(voltage_net)
 
         if frequency_net is None:
-            self.frequency_net = self.frequency_nom
+            self.frequency_net = self.frequency_rated
         else:
             self.frequency_net = float(frequency_net)
 
@@ -202,23 +202,25 @@ class MotorElement(Element):
             self.initial_angle_net = float(initial_angle_net)
 
         # Internal model inductances parameters derived from CEMP
-        Lls = self.stator_reactance / self.frequency_nom
-        Llr = self.rotor_reactance / self.frequency_nom
-        self.Lm = self.mutual_reactance / self.frequency_nom
+        Lls = self.stator_reactance / self.frequency_rated
+        Llr = self.rotor_reactance / self.frequency_rated
+        self.Lm = self.mutual_reactance / self.frequency_rated
         self.Lss = Lls + self.Lm
         self.Lrr = Llr + self.Lm
 
-        # Internal Electric Motor constants derived from NOMP and CEMP
-        snom = (1 - self.speed_nom * self.n_poles / (2 * self.frequency_nom)) * 100
-        wnom = (self.frequency_nom * (1 - snom / 100)) / (self.n_poles / 2)
+        # Internal Electric Motor constants derived from RATP and CEMP
+        srated = (
+            1 - self.speed_rated * self.n_poles / (2 * self.frequency_rated)
+        ) * 100
+        wrated = (self.frequency_rated * (1 - srated / 100)) / (self.n_poles / 2)
         sigma = 1 - self.Lm**2 / (self.Lss * self.Lrr)
-        self.Tnom = self.power_nom / wnom
+        self.T_rated = self.power_rated / wrated
         self.a = 1 / (sigma * self.Lss)
         self.b = 1 / (sigma * self.Lrr)
         self.c = self.Lm / (sigma * self.Lss * self.Lrr)
 
         # Short-Circuit Power and Impedances parameters derived from SCIP
-        SCC_net = self.short_circuit_ratio_net * self.power_nom
+        SCC_net = self.short_circuit_ratio_net * self.power_rated
         Zsc = self.voltage_net**2 / SCC_net
         Xsc = Zsc * self.XR_ratio_net / np.sqrt(1 + self.XR_ratio_net**2)
         self.short_circuit_resistance = Xsc / self.XR_ratio_net
@@ -248,10 +250,10 @@ class MotorElement(Element):
         return (
             f"{self.__class__.__name__}"
             f"(n={self.n}, tag={self.tag!r}, "
-            f"power_nom={self.power_nom:{0}.{5}}, "
-            f"voltage_nom={self.voltage_nom:{0}.{5}}, "
-            f"speed_nom={self.speed_nom:{0}.{5}}, "
-            f"frequency_nom={self.frequency_nom:{0}.{5}}, "
+            f"power_rated={self.power_rated:{0}.{5}}, "
+            f"voltage_rated={self.voltage_rated:{0}.{5}}, "
+            f"speed_rated={self.speed_rated:{0}.{5}}, "
+            f"frequency_rated={self.frequency_rated:{0}.{5}}, "
             f"n_poles={self.n_poles}, "
             f"stator_resistance={self.stator_resistance:{0}.{5}}, "
             f"rotor_resistance={self.rotor_resistance:{0}.{5}}, "
@@ -283,22 +285,22 @@ class MotorElement(Element):
         >>> print(motor_example())  # doctest: +ELLIPSIS
         Tag:                                None
         Node:                               0
-        -------- Nominal Parameters (NOMP) -------
-        Nominal Power (W):                  1103.2
-        Nominal Voltage (V):                127.0
-        Nominal Rotation (rad/s):           179.07
-        Nominal Frequency (Hz):             60.0
+        --------- Rated Parameters (RATP) --------
+        Rated Power (W):                    1103.2
+        Rated Voltage (V):                  127.0
+        Rated Rotation (rad/s):             179.07
+        Rated Frequency (Hz):               60.0
         Number of Poles:                    4
         ...
         """
         return (
             f"Tag:                                {self.tag}"
             f"\nNode:                               {self.n}"
-            f"\n-------- Nominal Parameters (NOMP) -------"
-            f"\nNominal Power (W):                  {self.power_nom:{2}.{5}}"
-            f"\nNominal Voltage (V):                {self.voltage_nom:{2}.{5}}"
-            f"\nNominal Rotation (rad/s):           {self.speed_nom:{2}.{5}}"
-            f"\nNominal Frequency (Hz):             {Q_(self.frequency_nom, 'rad/s').to('Hz').m:{2}.{5}}"
+            f"\n--------- Rated Parameters (RATP) --------"
+            f"\nRated Power (W):                    {self.power_rated:{2}.{5}}"
+            f"\nRated Voltage (V):                  {self.voltage_rated:{2}.{5}}"
+            f"\nRated Rotation (rad/s):             {self.speed_rated:{2}.{5}}"
+            f"\nRated Frequency (Hz):               {Q_(self.frequency_rated, 'rad/s').to('Hz').m:{2}.{5}}"
             f"\nNumber of Poles:                    {self.n_poles}"
             f"\n-------- Circuit Parameters (CEMP) -------"
             f"\nStator Resistance (Ohm):            {self.stator_resistance:{2}.{5}}"
@@ -455,22 +457,22 @@ class MotorElement(Element):
         hovertemplate : str
             Plotly hover template string.
         """
-        frequency_hz = Q_(self.frequency_nom, "rad/s").to("Hz").m
+        frequency_hz = Q_(self.frequency_rated, "rad/s").to("Hz").m
         customdata = [
             self.n,
-            self.power_nom,
-            self.voltage_nom,
-            self.speed_nom,
+            self.power_rated,
+            self.voltage_rated,
+            self.speed_rated,
             frequency_hz,
             self.n_poles,
             self.Ip_motor,
         ]
         hovertemplate = (
             f"Motor Node: {customdata[0]}<br>"
-            f"Nominal Power (W): {customdata[1]:.3f}<br>"
-            f"Nominal Voltage (V): {customdata[2]:.3f}<br>"
-            f"Nominal Speed (rad/s): {customdata[3]:.3f}<br>"
-            f"Nominal Frequency (Hz): {customdata[4]:.3f}<br>"
+            f"Rated Power (W): {customdata[1]:.3f}<br>"
+            f"Rated Voltage (V): {customdata[2]:.3f}<br>"
+            f"Rated Speed (rad/s): {customdata[3]:.3f}<br>"
+            f"Rated Frequency (Hz): {customdata[4]:.3f}<br>"
             f"Number of Poles: {customdata[5]}<br>"
             f"Motor Inertia (kg.m²): {customdata[6]:.3e}<br>"
         )
@@ -587,8 +589,8 @@ class MotorElement(Element):
             Default is half the simulation time.
         load_torque_ratio : float, optional
             Load torque ratio applied at the entrance time. This is a multiplier
-            for the nominal load torque, e.g., a value of 1.0 applies 100% of the
-            nominal torque at entrance time. Default is 1.0.
+            for the rated load torque, e.g., a value of 1.0 applies 100% of the
+            rated torque at entrance time. Default is 1.0.
         element : SourceAC, InverterVF or InverterFOC
             Electrical source or inverter. Must implement ``get_current_state``.
             :class:`InverterFOC` is stepped in closed
@@ -641,7 +643,7 @@ class MotorElement(Element):
         if load_torque_entrance_time is None:
             load_torque_entrance_time = t_simul[nt // 2]
 
-        Tl_full = self.Tnom * load_torque_ratio
+        Tl_full = self.T_rated * load_torque_ratio
 
         Rs = self.stator_resistance + self.short_circuit_resistance
         Ip = self.Ip_motor + self.Ip_load
@@ -775,12 +777,12 @@ class MotorElement(Element):
             Default is half the simulation time.
         load_torque_ratio : float, optional
             Load torque ratio applied at the entrance time. This is a multiplier
-            for the nominal load torque, e.g., a value of 1.0 applies 100% of the
-            nominal torque at entrance time. Default is 1.0.
+            for the rated load torque, e.g., a value of 1.0 applies 100% of the
+            rated torque at entrance time. Default is 1.0.
         voltage_net : float, pint.Quantity, optional
-            Power supply voltage [V]. If None, uses motor nominal voltage.
+            Power supply voltage [V]. If None, uses motor rated voltage.
         frequency_net : float, pint.Quantity, optional
-            Power supply frequency [rad/s]. If None, uses motor nominal frequency.
+            Power supply frequency [rad/s]. If None, uses motor rated frequency.
         initial_phase_angle : float, pint.Quantity, optional
             Initial power supply phase angle [rad]. Default is 0.
         harmonics : dict, optional
@@ -791,14 +793,14 @@ class MotorElement(Element):
             - 'orders' : list of int
                 Harmonic orders (e.g., [5, 7, 11] for 5th, 7th, and 11th harmonics).
             - 'amplitudes' : list of float
-                Harmonic amplitudes as percentage of nominal voltage (e.g., [10, 5, 2] for 10%, 5%, and 2%).
+                Harmonic amplitudes as percentage of rated voltage (e.g., [10, 5, 2] for 10%, 5%, and 2%).
         unbalances : dict, optional
             Configuration for three-phase grid unbalance.
             Expected keys:
             - 'enable' : bool
                 Enable unbalances.
             - 'voltage_percent' : list of float
-                Voltage magnitude deviation per phase (A, B, C) relative to nominal [%].
+                Voltage magnitude deviation per phase (A, B, C) relative to rated [%].
                 Must contain exactly 3 elements.
                 Positive → higher voltage; Negative → lower voltage.
             - 'angle_deviation' : list of float, pint.Quantity
@@ -862,8 +864,8 @@ class MotorElement(Element):
             unbalance_voltage_percent, unbalance_angle_deviation = None, None
 
         source = SourceAC(
-            voltage_net=voltage_net or self.voltage_nom,
-            frequency_net=frequency_net or self.frequency_nom,
+            voltage_net=voltage_net or self.voltage_rated,
+            frequency_net=frequency_net or self.frequency_rated,
             initial_phase_angle=initial_phase_angle,
             harmonic_orders=harmonic_orders,
             harmonic_amplitudes=harmonic_amplitudes,
@@ -914,13 +916,13 @@ class MotorElement(Element):
             Default is half the simulation time.
         load_torque_ratio : float, optional
             Load torque ratio applied at the entrance time. This is a multiplier
-            for the nominal load torque, e.g., a value of 1 applies 100% of the
-            nominal torque. Default is 1.
+            for the rated load torque, e.g., a value of 1 applies 100% of the
+            rated torque. Default is 1.
         time_ramp : float, optional
             Acceleration ramp time [s] for frequency ramping. Default is 0.6667.
         frequency_ref : float or pint.Quantity, optional
             Reference frequency for V/f adjustment technique [rad/s].
-            If None, uses half the motor nominal frequency.
+            If None, uses half the motor rated frequency.
 
         Returns
         -------
@@ -960,16 +962,16 @@ class MotorElement(Element):
         >>> fig8 = results.plot_phase_voltages(domain="frequency")
         """
 
-        Vnl = phase_to_line(self.voltage_nom)
+        Vnl = phase_to_line(self.voltage_rated)
         voltage_dc = line_to_dc_bus(Vnl)
 
         inverter = InverterVF(
             voltage_dc=voltage_dc,
             frequency_s=float(frequency_s),
-            voltage_nom=Vnl,
-            frequency_nom=self.frequency_nom,
+            voltage_rated=Vnl,
+            frequency_rated=self.frequency_rated,
             time_ramp=time_ramp,
-            frequency_ref=float(frequency_ref or self.frequency_nom / 2),
+            frequency_ref=float(frequency_ref or self.frequency_rated / 2),
         )
 
         results = self.run(
@@ -1015,8 +1017,8 @@ class MotorElement(Element):
             Default is half the simulation time.
         load_torque_ratio : float, optional
             Load torque ratio applied at the entrance time. This is a multiplier
-            for the nominal load torque, e.g., a value of 1 applies 100% of the
-            nominal torque. Default is 1.
+            for the rated load torque, e.g., a value of 1 applies 100% of the
+            rated torque. Default is 1.
         time_ramp : float, optional
             Acceleration ramp time [s] for the mechanical speed reference.
             Default is 1.
@@ -1024,7 +1026,7 @@ class MotorElement(Element):
             IGBT switching frequency [rad/s].
         frequency_ref : float or pint.Quantity, optional
             Synchronous electrical frequency reference [rad/s].
-            If None, uses half the motor nominal frequency.
+            If None, uses half the motor rated frequency.
 
         Returns
         -------
@@ -1064,17 +1066,17 @@ class MotorElement(Element):
         >>> fig8 = results.plot_phase_voltages(domain="frequency")
         """
 
-        Vnl = phase_to_line(self.voltage_nom)
+        Vnl = phase_to_line(self.voltage_rated)
         voltage_dc = line_to_dc_bus(Vnl)
 
         inverter = InverterFOC(
             voltage_dc=voltage_dc,
             frequency_s=float(frequency_s),
-            voltage_nom=Vnl,
-            frequency_nom=self.frequency_nom,
+            voltage_rated=Vnl,
+            frequency_rated=self.frequency_rated,
             n_poles=self.n_poles,
-            speed_nom=self.speed_nom,
-            torque_nom=self.Tnom,
+            speed_rated=self.speed_rated,
+            torque_rated=self.T_rated,
             stator_resistance=self.stator_resistance,
             rotor_resistance=self.rotor_resistance,
             stator_reactance=self.stator_reactance,
@@ -1082,7 +1084,7 @@ class MotorElement(Element):
             mutual_reactance=self.mutual_reactance,
             Ip_motor=self.Ip_motor,
             time_ramp=time_ramp,
-            frequency_ref=float(frequency_ref or self.frequency_nom / 2),
+            frequency_ref=float(frequency_ref or self.frequency_rated / 2),
         )
 
         results = self.run(
@@ -1385,17 +1387,17 @@ def motor_example():
     Examples
     --------
     >>> motor = motor_example()
-    >>> motor.frequency_nom  # doctest: +ELLIPSIS
+    >>> motor.frequency_rated  # doctest: +ELLIPSIS
     376.991...
     """
 
     return MotorElement(
         n=0,
         tag=None,
-        power_nom=Q_(1.5, "cv"),
-        voltage_nom=127,
-        speed_nom=Q_(1710, "RPM"),
-        frequency_nom=Q_(60.0, "Hz"),
+        power_rated=Q_(1.5, "cv"),
+        voltage_rated=127,
+        speed_rated=Q_(1710, "RPM"),
+        frequency_rated=Q_(60.0, "Hz"),
         n_poles=4,
         stator_resistance=2.5,
         rotor_resistance=1.8,

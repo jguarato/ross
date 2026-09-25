@@ -5029,8 +5029,8 @@ class Rotor(object):
             Default is half the simulation time.
         load_torque_ratio : float, optional
             Load torque ratio applied at the entrance time. This is a multiplier
-            for the nominal load torque, e.g., a value of 1.0 applies 100% of the
-            nominal torque at entrance time. Default is 1.0.
+            for the rated load torque, e.g., a value of 1.0 applies 100% of the
+            rated torque at entrance time. Default is 1.0.
         ac_source_harmonics : dict, optional
             Configuration for grid harmonic injection.
             Active only when `drive_mode='DOL'`.
@@ -5040,7 +5040,7 @@ class Rotor(object):
             - 'orders' : list of int
                 Harmonic orders (e.g., [5, 7, 11] for 5th, 7th, and 11th harmonics).
             - 'amplitudes' : list of float
-                Harmonic amplitudes as percentage of nominal voltage
+                Harmonic amplitudes as percentage of rated voltage
                 (e.g., [10, 5, 2] for 10%, 5%, and 2%).
         ac_source_unbalances : dict, optional
             Configuration for three-phase grid unbalance.
@@ -5049,7 +5049,7 @@ class Rotor(object):
             - 'enable' : bool
                 Enable unbalances.
             - 'voltage_percent' : list of float
-                Voltage magnitude deviation per phase (A, B, C) relative to nominal [%].
+                Voltage magnitude deviation per phase (A, B, C) relative to rated [%].
                 Must contain exactly 3 elements.
                 Positive → higher voltage; Negative → lower voltage.
             - 'angle_deviation' : list of float, pint.Quantity
@@ -5067,7 +5067,7 @@ class Rotor(object):
             when `drive_mode='VFD_VF'` and as the synchronous frequency
             reference when `drive_mode='VFD_FOC'`.
             Active only when `drive_mode` is ``'VFD_VF'`` or ``'VFD_FOC'``.
-            Default is None, which uses half the motor nominal frequency.
+            Default is None, which uses half the motor rated frequency.
         steady_state : bool, optional
             If True (default), only the last third of the interval after
             `load_torque_entrance_time` is integrated, skipping the motor
