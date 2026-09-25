@@ -13,12 +13,11 @@ from numpy.fft import fft
 from numpy import linalg as la
 from plotly import graph_objects as go
 from copy import deepcopy as copy
+from ross.units import check_units
 from scipy.integrate import cumulative_trapezoid as integrate
 from tsdownsample import MinMaxLTTBDownsampler
 
 _downsampler = MinMaxLTTBDownsampler()
-
-from ross.units import check_units
 
 
 class NumpyEncoder(json.JSONEncoder):
