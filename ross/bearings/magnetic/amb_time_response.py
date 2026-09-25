@@ -2,7 +2,7 @@ import time
 
 import numpy as np
 from scipy import signal
-from scipy.linalg import eigh, block_diag
+from scipy.linalg import eigh, block_diag, matrix_balance
 import control as ct
 from copy import deepcopy
 
@@ -90,6 +90,7 @@ class AmbTimeResponse:
         self.B_cl = None  # Closed-loop system B matrix
         self.C_cl = None  # Closed-loop system C matrix
         self.D_cl = None  # Closed-loop system D matrix
+        self.state_scaling = None  # Diagonal scaling of the closed-loop state vector
 
         # Current Physical State
         self.x = None  # Complete physical state vector
@@ -224,6 +225,14 @@ class AmbTimeResponse:
         in closed-loop with the magnetic bearing controllers, considering
         the bearing orientation and coupling effects.
 
+        The controllers come from a transfer function, so their state-space
+        realization is a companion form whose entries span many orders of
+        magnitude. Left untouched, the resulting A_cl has a 1-norm around
+        1e26 and the matrix exponential that `scipy.signal.lsim` computes
+        overflows to NaN. The closed-loop realization is therefore rescaled
+        by `scipy.linalg.matrix_balance`, a diagonal similarity transform
+        that leaves the input-output behavior unchanged.
+
         Examples
         --------
         >>> from ross.bearings.magnetic.amb_models import rotor_example_amb_complex_controllers
@@ -326,6 +335,11 @@ class AmbTimeResponse:
             ]
         )
 
+        self.A_cl, T = matrix_balance(self.A_cl, permute=False)
+        self.state_scaling = T.diagonal()
+        self.B_cl = self.B_cl / self.state_scaling[:, None]
+        self.C_cl = self.C_cl * self.state_scaling[None, :]
+
     def run(self):
         """
         Run the time-response simulation.
@@ -378,7 +392,7 @@ class AmbTimeResponse:
 
         x_c_0 = np.zeros((self.n_x_c, 1))
 
-        z_0 = np.block([[x_0], [d_x0], [x_c_0]]).reshape(-1)
+        z_0 = np.block([[x_0], [d_x0], [x_c_0]]).reshape(-1) / self.state_scaling
 
         self.t, self.y, _ = signal.lsim(sys, U=u, T=self.t, X0=z_0)
         print(f"Simulation time: {time.time() - tic:.2f} seconds")
