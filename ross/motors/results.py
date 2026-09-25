@@ -8,7 +8,7 @@ from scipy.interpolate import interp1d
 import numpy as np
 
 from ross.results import Results
-from ross.units import Q_, check_units, format_units
+from ross.units import Q_, check_units, format_unit
 from ross.utils import limit_data_range, downsample_figure
 from .utils import windowed_dfft
 
@@ -28,7 +28,7 @@ class PhaseResults(Results):
     >>> t = np.arange(0, tf + dt, dt)
     >>> results = motor.run_direct_on_line(t)
     >>> current = PhaseResults(results.t, results.currents, "I", results.t_eval)
-    >>> current.units
+    >>> current.unit
     'A'
     >>> fig = current.plot(reference_frame="alpha-beta")
     """
@@ -44,8 +44,8 @@ class PhaseResults(Results):
     }
 
     _DATA_TYPE_MAP = {
-        "I": {"units": "A", "name": "Current"},
-        "V": {"units": "V", "name": "Voltage"},
+        "I": {"unit": "A", "name": "Current"},
+        "V": {"unit": "V", "name": "Voltage"},
     }
 
     def __init__(self, t, data, data_type, t_eval=None):
@@ -76,7 +76,7 @@ class PhaseResults(Results):
             )
 
         self.name = self._DATA_TYPE_MAP[data_type]["name"]
-        self.units = self._DATA_TYPE_MAP[data_type]["units"]
+        self.unit = self._DATA_TYPE_MAP[data_type]["unit"]
 
         min_dt = 1e-4
         dt = np.diff(self.t).min()
@@ -150,7 +150,7 @@ class PhaseResults(Results):
         fig.update_layout(
             title=f"Phase {self.name}s",
             xaxis_title="Time (s)",
-            yaxis_title=f"{self.name} ({format_units(self.units)})",
+            yaxis_title=f"{self.name} ({format_unit(self.unit)})",
         )
 
         if time_range is not None:
@@ -236,8 +236,8 @@ class PhaseResults(Results):
 
         fig.update_layout(
             title=f"Phase {self.name}s",
-            xaxis_title=f"Frequency ({format_units(frequency_units)})",
-            yaxis_title=f"{self.name} ({format_units(self.units)})",
+            xaxis_title=f"Frequency ({format_unit(frequency_units)})",
+            yaxis_title=f"{self.name} ({format_unit(self.unit)})",
         )
 
         if frequency_range is not None:
@@ -399,7 +399,7 @@ class MotorResponseResults(Results):
 
         fig.update_layout(
             title=title,
-            xaxis_title=f"Frequency ({format_units(frequency_units)})",
+            xaxis_title=f"Frequency ({format_unit(frequency_units)})",
             yaxis_title=yaxis_title,
         )
 
@@ -511,7 +511,7 @@ class MotorResponseResults(Results):
                 "Load Torque": Q_(self.load_torque, "N*m").to(torque_units).m,
             },
             title="Motor operation: Electromagnetic Torque and Load Torque",
-            yaxis_title=f"Torque ({format_units(torque_units)})",
+            yaxis_title=f"Torque ({format_unit(torque_units)})",
             fig=fig,
             n_shown_samples=n_shown_samples,
         )
@@ -595,7 +595,7 @@ class MotorResponseResults(Results):
                 "Shaft Speed": Q_(self.speed, "rad/s").to(speed_units).m,
             },
             title="Motor operation: Shaft Speed",
-            yaxis_title=f"Speed ({format_units(speed_units)})",
+            yaxis_title=f"Speed ({format_unit(speed_units)})",
             fig=fig,
             n_shown_samples=n_shown_samples,
         )
