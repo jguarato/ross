@@ -1102,6 +1102,50 @@ class Rotor(object):
             name: getattr(self, name) for name in sig.parameters if name not in skip
         }
 
+    def _rebuild(
+        self,
+        shaft_elements=None,
+        disk_elements=None,
+        bearing_elements=None,
+        point_mass_elements=None,
+    ):
+        """Build a new rotor of the same class with the given elements.
+
+        Element lists that are not given are taken from this rotor, and
+        the remaining ``__init__`` parameters are kept.
+
+        Parameters
+        ----------
+        shaft_elements : list, optional
+            Shaft elements of the new rotor.
+        disk_elements : list, optional
+            Disk elements of the new rotor.
+        bearing_elements : list, optional
+            Bearing and seal elements of the new rotor.
+        point_mass_elements : list, optional
+            Point mass elements of the new rotor.
+
+        Returns
+        -------
+        rotor : rs.Rotor
+            The new rotor object.
+        """
+        return self.__class__(
+            self.shaft_elements if shaft_elements is None else shaft_elements,
+            disk_elements=(
+                self.disk_elements if disk_elements is None else disk_elements
+            ),
+            bearing_elements=(
+                self.bearing_elements if bearing_elements is None else bearing_elements
+            ),
+            point_mass_elements=(
+                self.point_mass_elements
+                if point_mass_elements is None
+                else point_mass_elements
+            ),
+            **self._init_parameters(),
+        )
+
     def add_nodes(self, new_nodes_pos):
         """Add nodes to rotor.
 
@@ -1208,12 +1252,11 @@ class Rotor(object):
         for elm in elm_linked:
             elm.n += n_nodes
 
-        return self.__class__(
+        return self._rebuild(
             shaft_elements,
             disk_elements=disk_elements,
             bearing_elements=bearing_elements,
             point_mass_elements=point_mass_elements,
-            **self._init_parameters(),
         )
 
     def add_elements(self, new_elements):
@@ -1261,12 +1304,11 @@ class Rotor(object):
             else:
                 raise ValueError(f"{el} is not a valid element.")
 
-        return self.__class__(
+        return self._rebuild(
             shaft_elements,
             disk_elements=disk_elements,
             bearing_elements=bearing_elements,
             point_mass_elements=point_mass_elements,
-            **self._init_parameters(),
         )
 
     @lru_cache()
@@ -1755,7 +1797,7 @@ class Rotor(object):
                 aux_elm.n = nel_r * elm.n
                 pmass_elem.append(aux_elm)
 
-            aux_rotor = Rotor(shaft_elem, disk_elem, brgs_elem, pmass_elem)
+            aux_rotor = self._rebuild(shaft_elem, disk_elem, brgs_elem, pmass_elem)
             aux_modal = aux_rotor.run_modal(speed=0)
 
             eigv_arr = np.append(eigv_arr, aux_modal.wn[n_eigval])
@@ -4560,9 +4602,8 @@ class Rotor(object):
 
         for i, k in enumerate(stiffness_log):
             rotor = convert_6dof_to_4dof(
-                self.__class__(
+                self._rebuild(
                     shaft_elements=shaft_elements,
-                    disk_elements=self.disk_elements,
                     bearing_elements=[
                         BearingElement(n=b.n, n_link=b.n_link, kxx=k, cxx=0)
                         for b in bearings
@@ -4646,9 +4687,8 @@ class Rotor(object):
 
                         # create rotor
                         rotor_critical = convert_6dof_to_4dof(
-                            self.__class__(
+                            self._rebuild(
                                 shaft_elements=shaft_elements,
-                                disk_elements=self.disk_elements,
                                 bearing_elements=self._remove_housing_bearings(
                                     bearings
                                 ),
@@ -4745,12 +4785,7 @@ class Rotor(object):
             cross_coupling = BearingElement(n=n, kxx=0, cxx=0, kxy=Q, kyx=-Q)
             bearings.append(cross_coupling)
 
-            rotor = self.__class__(
-                self.shaft_elements,
-                self.disk_elements,
-                bearings,
-                self.point_mass_elements,
-            )
+            rotor = self._rebuild(bearing_elements=bearings)
 
             modal = rotor.run_modal(speed=speed)
             non_backward = modal.whirl_direction() != "Backward"
@@ -5528,8 +5563,10 @@ class Rotor(object):
             aux_brg.append(BearingElement(n=brg.n, n_link=brg.n_link, kxx=1e20, cxx=0))
             aux_brg_1.append(BearingElement(n=brg.n, n_link=brg.n_link, kxx=0, cxx=0))
 
-        aux_rotor = Rotor(self.shaft_elements, self.disk_elements, aux_brg, pmass)
-        aux_rotor_1 = Rotor(self.shaft_elements, self.disk_elements, aux_brg_1, pmass)
+        aux_rotor = self._rebuild(bearing_elements=aux_brg, point_mass_elements=pmass)
+        aux_rotor_1 = self._rebuild(
+            bearing_elements=aux_brg_1, point_mass_elements=pmass
+        )
 
         aux_M = aux_rotor.M(0)
         aux_K = aux_rotor.K(0)
