@@ -5,6 +5,7 @@ through a pair of gears, allowing lateral-torsional coupled analyses of
 geared rotor-dynamic systems.
 """
 
+import inspect
 import numpy as np
 from re import search
 from copy import deepcopy as copy
@@ -13,7 +14,6 @@ import ross as rs
 from ross.rotor_assembly import Rotor
 from ross.units import Q_, check_units
 from ross.utils import make_speed_array
-from ross.results import TimeResponseResults
 
 from .gear_element import GearElement
 from .mesh import Mesh
@@ -237,7 +237,12 @@ class MultiRotor(Rotor):
         )
 
         # Create mesh
+        self.gear_mesh_stiffness = gear_mesh_stiffness
         self.update_mesh_stiffness = update_mesh_stiffness
+        self.square_varying_stiffness = square_varying_stiffness
+        self.backlash = backlash
+        self.orientation_angle = orientation_angle
+        self.position = position
 
         self.mesh = Mesh(
             gear_1,
@@ -254,123 +259,6 @@ class MultiRotor(Rotor):
             self.add_coupling_stiffness = lambda K0: K0
         else:
             self.add_coupling_stiffness = self.K_mesh
-
-    def set_tag(self, tag):
-        """Set the tag for the current multi-rotor."""
-        self.tag = tag or "MultiRotor 0"
-
-    def add_nodes(self, new_nodes_pos):
-        """Add new nodes to the multi-rotor.
-
-        This method allows adding new nodes to the multi-rotor system. It takes
-        a list of new node positions and adds them to the existing nodes of the
-        multi-rotor.
-
-        Parameters
-        ----------
-        new_nodes_pos : list of float
-            List of new node positions to be added to the multi-rotor.
-
-        Returns
-        -------
-        multi_rotor : MultiRotor
-            The multi-rotor object with the new nodes added.
-        """
-        driving_rotor = self.rotors["driving"].add_nodes(new_nodes_pos)
-
-        new_nodes_pos_2 = [pos - self.dz_pos for pos in new_nodes_pos]
-        driven_rotor = self.rotors["driven"].add_nodes(new_nodes_pos_2)
-
-        return self._rebuild(driving_rotor, driven_rotor)
-
-    def add_elements(self, new_elements):
-        """Add elements to the multi-rotor.
-
-        Elements are routed to the driving or driven rotor according to
-        their node number in the multi-rotor numbering.
-
-        Parameters
-        ----------
-        new_elements : list
-            List with the new elements.
-
-        Returns
-        -------
-        multi_rotor : MultiRotor
-            The multi-rotor object with the new elements added.
-
-        Examples
-        --------
-        >>> import ross as rs
-        >>> multi_rotor = two_shaft_rotor_example()
-        >>> n_elm = len(multi_rotor.elements)
-        >>> disk = rs.DiskElement(n=2, m=10, Id=0.1, Ip=0.2)
-        >>> new_rotor = multi_rotor.add_elements([disk])
-        >>> len(new_rotor.elements) == n_elm + 1
-        True
-        """
-        d_node = int(self.driven_nodes[0] - self.rotors["driven"].nodes[0])
-
-        driving_nodes = set(self.rotors["driving"].nodes) | set(
-            self.rotors["driving"].link_nodes
-        )
-        driven_nodes = set(self.driven_nodes) | {
-            int(n) + d_node for n in self.rotors["driven"].link_nodes
-        }
-
-        driving_elements = []
-        driven_elements = []
-
-        for el in new_elements:
-            el = copy(el)
-            if el.n is None:
-                raise ValueError(
-                    "Element node `n` must be set when adding to a MultiRotor."
-                )
-
-            if el.n in driven_nodes:
-                el.n -= d_node
-                if getattr(el, "n_link", None) is not None:
-                    el.n_link -= d_node
-                if not isinstance(el, rs.ShaftElement):
-                    if hasattr(el, "n_l"):
-                        el.n_l = el.n
-                    if hasattr(el, "n_r"):
-                        el.n_r = el.n
-                driven_elements.append(el)
-            elif el.n in driving_nodes:
-                driving_elements.append(el)
-            else:
-                raise ValueError(
-                    f"Node {el.n} does not belong to the driving or driven rotor."
-                )
-
-        driving_rotor = self.rotors["driving"].add_elements(driving_elements)
-        driven_rotor = self.rotors["driven"].add_elements(driven_elements)
-
-        return self._rebuild(driving_rotor, driven_rotor)
-
-    def _rebuild(self, driving_rotor, driven_rotor):
-        """Rebuild the multi-rotor from updated driving and driven rotors."""
-        gear_1 = self._get_coupled_gear(driving_rotor)
-        gear_2 = self._get_coupled_gear(driven_rotor)
-
-        square_varying_stiffness = {
-            "enable": self.mesh.stiffness_type == "square",
-            "amplitude_ratio": self.mesh.Ksq_ratio,
-        }
-
-        return self.__class__(
-            driving_rotor,
-            driven_rotor,
-            coupled_nodes=(gear_1.n, gear_2.n),
-            gear_mesh_stiffness=self.mesh.stiffness,
-            update_mesh_stiffness=self.update_mesh_stiffness,
-            square_varying_stiffness=square_varying_stiffness,
-            orientation_angle=self.mesh.orientation_angle,
-            position="above" if self.dy_pos >= 0 else "below",
-            tag=self.tag,
-        )
 
     @staticmethod
     def _set_coupled_gear(rotor, node):
@@ -417,6 +305,163 @@ class MultiRotor(Rotor):
             None,
         )
 
+    def set_tag(self, tag):
+        """Set the tag for the current multi-rotor."""
+        self.tag = tag or "MultiRotor 0"
+
+    def _init_parameters(self):
+        """Return keyword arguments to reconstruct this rotor.
+
+        Collects every ``__init__`` parameter except the element lists,
+        so callers can pass ``**self._init_parameters()`` when building
+        a new instance of the same class.
+
+        Returns
+        -------
+        dict
+            Mapping of parameter names to the current attribute values.
+        """
+        skip = {
+            "self",
+            "driving_rotor",
+            "driven_rotor",
+            "coupled_nodes",
+        }
+
+        sig = inspect.signature(self.__class__.__init__)
+
+        return {
+            name: getattr(self, name) for name in sig.parameters if name not in skip
+        }
+
+    def _couple_rotors(self, driving_rotor, driven_rotor):
+        """Rebuild the multi-rotor from updated driving and driven rotors."""
+        gear_1 = self._get_coupled_gear(driving_rotor)
+        gear_2 = self._get_coupled_gear(driven_rotor)
+
+        return self.__class__(
+            driving_rotor,
+            driven_rotor,
+            coupled_nodes=(gear_1.n, gear_2.n),
+            **self._init_parameters(),
+        )
+
+    def _separate_elements(self, elements):
+        """Separate elements into driving and driven rotor elements.
+
+        This method takes a list of elements and separates them into two lists:
+        one for the driving rotor and another for the driven rotor. The separation
+        is based on the node numbers of the elements.
+
+        Parameters
+        ----------
+        elements : list
+            List of elements to be separated.
+
+        Returns
+        -------
+        driving_elements : list
+            List of elements belonging to the driving rotor.
+        driven_elements : list
+            List of elements belonging to the driven rotor.
+        """
+        d_node = int(self.driven_nodes[0] - self.rotors["driven"].nodes[0])
+
+        driving_nodes = set(self.rotors["driving"].nodes) | set(
+            self.rotors["driving"].link_nodes
+        )
+        driven_nodes = set(self.driven_nodes) | {
+            int(n) + d_node for n in self.rotors["driven"].link_nodes
+        }
+
+        driving_elements = []
+        driven_elements = []
+
+        for elm in elements:
+            el = copy(elm)
+            if el.n is None:
+                raise ValueError(
+                    "Element node `n` must be set when adding to a MultiRotor."
+                )
+
+            if el.n in driven_nodes:
+                el.n -= d_node
+
+                if getattr(el, "n_link", None) is not None:
+                    el.n_link -= d_node
+
+                driven_elements.append(el)
+            elif el.n in driving_nodes:
+                driving_elements.append(el)
+            else:
+                raise ValueError(
+                    f"Node {el.n} does not belong to the driving or driven rotor."
+                )
+
+        return driving_elements, driven_elements
+
+    def _rebuild(
+        self,
+        shaft_elements=None,
+        disk_elements=None,
+        bearing_elements=None,
+        point_mass_elements=None,
+    ):
+        """Build a new multi-rotor with the given elements.
+
+        Element lists that are not given are taken from this rotor, and
+        the remaining ``__init__`` parameters are kept.
+
+        Parameters
+        ----------
+        shaft_elements : list, optional
+            Shaft elements of the new rotor.
+        disk_elements : list, optional
+            Disk elements of the new rotor.
+        bearing_elements : list, optional
+            Bearing and seal elements of the new rotor.
+        point_mass_elements : list, optional
+            Point mass elements of the new rotor.
+
+        Returns
+        -------
+        multi_rotor : MultiRotor
+            The new multi-rotor object.
+        """
+        driving_sh = None
+        driving_dsk = None
+        driving_brg = None
+        driving_pm = None
+
+        driven_sh = None
+        driven_dsk = None
+        driven_brg = None
+        driven_pm = None
+
+        if shaft_elements is not None:
+            driving_sh, driven_sh = self._separate_elements(shaft_elements)
+        if disk_elements is not None:
+            driving_dsk, driven_dsk = self._separate_elements(disk_elements)
+        if bearing_elements is not None:
+            driving_brg, driven_brg = self._separate_elements(bearing_elements)
+        if point_mass_elements is not None:
+            driving_pm, driven_pm = self._separate_elements(point_mass_elements)
+        driving_rotor = self.rotors["driving"]._rebuild(
+            shaft_elements=driving_sh,
+            disk_elements=driving_dsk,
+            bearing_elements=driving_brg,
+            point_mass_elements=driving_pm,
+        )
+
+        driven_rotor = self.rotors["driven"]._rebuild(
+            shaft_elements=driven_sh,
+            disk_elements=driven_dsk,
+            bearing_elements=driven_brg,
+            point_mass_elements=driven_pm,
+        )
+
+        return self._couple_rotors(driving_rotor, driven_rotor)
+
     def _fix_nodes_pos(self, index, node, nodes_pos_l):
         """Adjust node positions of the driven rotor."""
         if node < self.driven_nodes[0]:
@@ -441,6 +486,63 @@ class MultiRotor(Rotor):
             *self.rotors["driving"].center_line_pos,
             *R2_center_line,
         ]
+
+    def add_nodes(self, new_nodes_pos):
+        """Add new nodes to the multi-rotor.
+
+        This method allows adding new nodes to the multi-rotor system. It takes
+        a list of new node positions and adds them to the existing nodes of the
+        multi-rotor.
+
+        Parameters
+        ----------
+        new_nodes_pos : list of float
+            List of new node positions to be added to the multi-rotor.
+
+        Returns
+        -------
+        multi_rotor : MultiRotor
+            The multi-rotor object with the new nodes added.
+        """
+        driving_rotor = self.rotors["driving"].add_nodes(new_nodes_pos)
+
+        new_nodes_pos_2 = [pos - self.dz_pos for pos in new_nodes_pos]
+        driven_rotor = self.rotors["driven"].add_nodes(new_nodes_pos_2)
+
+        return self._couple_rotors(driving_rotor, driven_rotor)
+
+    def add_elements(self, new_elements):
+        """Add elements to the multi-rotor.
+
+        Elements are routed to the driving or driven rotor according to
+        their node number in the multi-rotor numbering.
+
+        Parameters
+        ----------
+        new_elements : list
+            List with the new elements.
+
+        Returns
+        -------
+        multi_rotor : MultiRotor
+            The multi-rotor object with the new elements added.
+
+        Examples
+        --------
+        >>> import ross as rs
+        >>> multi_rotor = two_shaft_rotor_example()
+        >>> n_elm = len(multi_rotor.elements)
+        >>> disk = rs.DiskElement(n=2, m=10, Id=0.1, Ip=0.2)
+        >>> new_rotor = multi_rotor.add_elements([disk])
+        >>> len(new_rotor.elements) == n_elm + 1
+        True
+        """
+        driving_elements, driven_elements = self._separate_elements(new_elements)
+
+        driving_rotor = self.rotors["driving"].add_elements(driving_elements)
+        driven_rotor = self.rotors["driven"].add_elements(driven_elements)
+
+        return self._couple_rotors(driving_rotor, driven_rotor)
 
     def _join_matrices(self, driving_matrix, driven_matrix):
         """Join matrices from the driving rotor and driven rotor to form the matrix of

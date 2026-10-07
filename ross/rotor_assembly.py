@@ -748,7 +748,7 @@ class Rotor(object):
         self.It = v @ (self.M0 @ v.T)
 
     def __add__(self, other):
-        return Rotor.concatenate(self, other)
+        return self.__class__.concatenate(self, other)
 
     @classmethod
     def concatenate(cls, *rotors):
@@ -1131,15 +1131,17 @@ class Rotor(object):
             The new rotor object.
         """
         return self.__class__(
-            self.shaft_elements if shaft_elements is None else shaft_elements,
+            deepcopy(self.shaft_elements) if shaft_elements is None else shaft_elements,
             disk_elements=(
-                self.disk_elements if disk_elements is None else disk_elements
+                deepcopy(self.disk_elements) if disk_elements is None else disk_elements
             ),
             bearing_elements=(
-                self.bearing_elements if bearing_elements is None else bearing_elements
+                deepcopy(self.bearing_elements)
+                if bearing_elements is None
+                else bearing_elements
             ),
             point_mass_elements=(
-                self.point_mass_elements
+                deepcopy(self.point_mass_elements)
                 if point_mass_elements is None
                 else point_mass_elements
             ),
