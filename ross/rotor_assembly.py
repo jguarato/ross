@@ -1072,10 +1072,12 @@ class Rotor(object):
         True if other is equal to the reference parameter.
         False if not.
         """
-        if self.elements == other.elements and self.parameters == other.parameters:
-            return True
-        else:
-            return False
+        same_elements = self.elements == other.elements
+        same_parameters = self._init_parameters({"tag"}) == other._init_parameters(
+            {"tag"}
+        )
+
+        return same_elements and same_parameters
 
     def _init_parameters(self):
         """Return keyword arguments to reconstruct this rotor.
@@ -1097,7 +1099,9 @@ class Rotor(object):
             "point_mass_elements",
             "shafts",
         }
+
         sig = inspect.signature(self.__class__.__init__)
+
         return {
             name: getattr(self, name) for name in sig.parameters if name not in skip
         }
@@ -5376,11 +5380,14 @@ class Rotor(object):
         >>> rotor.save(file)
         """
         import ross
-        from ross.utils import dump_data
+        from ross.utils import dump_data, cast_numpy_types
+
+        parameters = cast_numpy_types(self._init_parameters())
 
         file = Path(file)
         dump_data(
-            {"ross_version": ross.__version__, "parameters": self.parameters}, file
+            {"ross_version": ross.__version__, "parameters": parameters},
+            file,
         )
         for el in self.elements:
             el.save(file)
