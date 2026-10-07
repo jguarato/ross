@@ -12,6 +12,7 @@ from copy import deepcopy as copy
 
 import ross as rs
 from ross.rotor_assembly import Rotor
+from ross.results import ForcedResponseResults
 from ross.units import Q_, check_units
 from ross.utils import make_speed_array
 
@@ -592,7 +593,7 @@ class MultiRotor(Rotor):
         F0 : list
             Unbalance force in each degree of freedom for each value in omega
         """
-        speed = self.check_speed(node, omega)
+        speed = self._node_gear_ratio(node) * omega
 
         return super()._unbalance_force(node, magnitude, phase, speed)
 
@@ -641,12 +642,12 @@ class MultiRotor(Rotor):
         F0 = np.zeros((self.ndof, len(t)))
 
         for i, n in enumerate(node):
-            phi = phase[i] + theta
+            phi = phase[i] + self._node_gear_ratio(n) * theta
+            w = self._node_gear_ratio(n) * omega
+            a = self._node_gear_ratio(n) * alpha
 
-            w = self.check_speed(n, omega)
-
-            Fx = magnitude[i] * ((w**2) * np.cos(phi) + alpha * np.sin(phi))
-            Fy = magnitude[i] * ((w**2) * np.sin(phi) - alpha * np.cos(phi))
+            Fx = magnitude[i] * ((w**2) * np.cos(phi) + a * np.sin(phi))
+            Fy = magnitude[i] * ((w**2) * np.sin(phi) - a * np.cos(phi))
 
             F0[n * self.number_dof + 0, :] += Fx
             F0[n * self.number_dof + 1, :] += Fy
@@ -656,36 +657,19 @@ class MultiRotor(Rotor):
         else:
             return F0
 
-    def check_speed(self, node, omega):
-        """Adjust the speed for the specified node based on the rotor configuration.
-
-        This method checks if the given node belongs to the driven rotor.
-        If so, the rotation speed is multiplied by the gear ratio.
-
-        Parameters
-        ----------
-        node : int
-            The node index where the speed check is being applied.
-        omega : float or np.ndarray
-            The original rotation speed of the driving rotor in rad/s.
-
-        Returns
-        -------
-        speed : float or np.ndarray
-            The adjusted rotation speed for the specified node.
-        """
-
-        speed = omega
+    def _node_gear_ratio(self, node):
+        """Determine the gear ratio for a given node."""
+        ratio = 1
         rotor = self.rotors["driving"]
 
         if node in self.driven_nodes:
-            speed = -self.mesh.gear_ratio * omega
+            ratio = -self.mesh.gear_ratio
             rotor = self.rotors["driven"]
 
         if isinstance(rotor, MultiRotor):
-            return rotor.check_speed(node, speed)
+            return rotor._node_gear_ratio(node)
 
-        return speed
+        return ratio
 
     def compute_coupling_matrix(self):
         """Coupling matrix of two coupled gears.
@@ -1157,6 +1141,100 @@ class MultiRotor(Rotor):
             results = super().run_time_response(speed, F, t, method=method, **kwargs)
 
         return results
+    
+    @check_units
+    def run_unbalance_response(
+        self,
+        node,
+        unbalance_magnitude,
+        unbalance_phase,
+        speed_range=None,
+        modes=None,
+    ):
+        """Unbalanced response for a multi-rotor.
+
+        Each unbalance excites at the speed of its own shaft.
+        The response is evaluated at that frequency, with the
+        rotor at driving rotor speed.
+
+        Parameters
+        ----------
+        node : list, int
+            Node where the unbalance is applied.
+        unbalance_magnitude : list, float, pint.Quantity
+            Unbalance magnitude (kg.m).
+        unbalance_phase : list, float, pint.Quantity
+            Unbalance phase (rad).
+        speed_range : list, pint.Quantity
+            Driving rotor speeds (rad/s).
+            Default is 0 to 1.5 x highest damped natural frequency.
+        modes : list, optional
+            Modes that will be used to calculate the frequency response
+            (all modes will be used if a list is not given).
+
+        Returns
+        -------
+        results : ross.ForcedResponseResults
+            For more information on attributes and methods available see:
+            :py:class:`ross.ForcedResponseResults`
+
+        Raises
+        ------
+        ValueError
+            If there are unbalances on both shafts and ``abs(speed_ratio)``
+            is not 1. The response then has two harmonics, which a single
+            result cannot hold, so each shaft must be run separately.
+
+        Examples
+        --------
+        >>> rotor = coaxrotor_example()
+        >>> speed = np.linspace(0, 150, 31)
+        >>> response = rotor.run_unbalance_response(node=[3, 13],
+        ...                                         unbalance_magnitude=[1e-4, 1e-4],
+        ...                                         unbalance_phase=[0, 0],
+        ...                                         speed_range=speed)
+        """
+        if speed_range is None:
+            modal = self.run_modal(0)
+            speed_range = np.linspace(0, max(modal.evalues.imag) * 1.5, 1000)
+
+        speed_range = np.asarray(speed_range)
+
+        node = np.atleast_1d(node)
+        unbalance_magnitude = np.atleast_1d(unbalance_magnitude)
+        unbalance_phase = np.atleast_1d(unbalance_phase)
+
+        frequency_ratios = {abs(self._node_gear_ratio(n)) for n in node}
+        if len(frequency_ratios) > 1:
+            raise ValueError(
+                "Unbalances on both shafts excite at different frequencies "
+                f"(abs(gear_ratio) = {abs(self.mesh.gear_ratio)}). Run the unbalance "
+                "response for each shaft separately."
+            )
+
+        frequency_range = frequency_ratios.pop() * speed_range
+
+        self._check_coefficient_axes(speed=speed_range, frequency=frequency_range)
+
+        force = np.zeros((self.ndof, len(speed_range)), dtype=complex)
+        for n, m, p in zip(node, unbalance_magnitude, unbalance_phase, strict=True):
+            force += self._unbalance_force(n, m, p, speed_range)
+
+        forced_resp = np.zeros((self.ndof, len(speed_range)), dtype=complex)
+        for i, (speed, frequency) in enumerate(
+            zip(speed_range, frequency_range, strict=True)
+        ):
+            H = self.transfer_matrix(speed=speed, frequency=frequency, modes=modes)
+            forced_resp[:, i] = H @ force[:, i]
+
+        return ForcedResponseResults(
+            rotor=self,
+            forced_resp=forced_resp,
+            velc_resp=1j * frequency_range * forced_resp,
+            accl_resp=-(frequency_range**2) * forced_resp,
+            speed_range=speed_range,
+            unbalance=np.vstack((node, unbalance_magnitude, unbalance_phase)),
+        )
 
 
 def two_shaft_rotor_example():
