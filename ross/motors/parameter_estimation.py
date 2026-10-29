@@ -22,6 +22,7 @@ from dataclasses import asdict, dataclass
 import numpy as np
 from scipy.optimize import least_squares
 
+from ross.motors.utils import phase_to_line
 from ross.units import Q_
 
 __all__ = [
@@ -160,11 +161,6 @@ class _Rating:
         else:
             self.current_rated = float(current_rated)
         self.starting_current = self.starting_current_ratio * self.current_rated
-
-    @property
-    def line_voltage(self):
-        """Rated line-to-line voltage [V]."""
-        return np.sqrt(3.0) * self.voltage_rated
 
     @property
     def power_hp(self):
@@ -404,7 +400,7 @@ def kueck(rating, known_stator_resistance=None, tolerance=1e-8, max_iterations=5
             0.00011
             * rating.n_poles**0.52
             * rating.power_hp ** (-1.26)
-            * rating.line_voltage**2
+            * phase_to_line(rating.voltage_rated) ** 2
         )
     else:
         r1 = float(known_stator_resistance)
@@ -1102,40 +1098,130 @@ _CATALOG_FUNCTIONS = {
 }
 
 
-def estimate_from_nameplate(method, rating, **options):
+def estimate_from_nameplate(
+    method,
+    power_rated,
+    voltage_rated,
+    speed_rated,
+    frequency_rated,
+    n_poles,
+    efficiency,
+    power_factor,
+    current_rated=None,
+    starting_current_ratio=6.0,
+    motor_category="N",
+    method_options=None,
+):
     """Run a nameplate-only estimation method.
 
     Parameters
     ----------
     method : str
         One of ``NAMEPLATE_METHODS``: "asdp", "kueck" or "lee".
-    rating : _Rating
-        Rated data of the motor.
-    **options
+    power_rated : float
+        Rated output power [W].
+    voltage_rated : float
+        Rated phase voltage [V].
+    speed_rated : float
+        Rated mechanical speed [rad/s].
+    frequency_rated : float
+        Rated electrical frequency [rad/s].
+    n_poles : int
+        Number of poles.
+    efficiency : float
+        Rated efficiency, between zero and one.
+    power_factor : float
+        Rated power factor, between zero and one.
+    current_rated : float, optional
+        Rated phase current [A]. Default is computed from the input power.
+    starting_current_ratio : float, optional
+        Ratio between starting and rated current.
+    motor_category : str, optional
+        Motor category, "N", "H" or "D".
+    method_options : dict, optional
         Options of the method.
 
     Returns
     -------
     result : EstimationResult
+
+    Examples
+    --------
+    >>> result = estimate_from_nameplate(
+    ...     "lee",
+    ...     power_rated=18642.5,
+    ...     voltage_rated=265.6,
+    ...     speed_rated=180.6,
+    ...     frequency_rated=377.0,
+    ...     n_poles=4,
+    ...     efficiency=0.83,
+    ...     power_factor=0.9,
+    ... )
+    >>> result.method
+    'Lee'
     """
     if method not in NAMEPLATE_METHODS:
         raise ValueError(f"method must be one of {sorted(NAMEPLATE_METHODS)}.")
-    return NAMEPLATE_METHODS[method](rating, **options)
+    rating = _Rating(
+        power_rated,
+        voltage_rated,
+        speed_rated,
+        frequency_rated,
+        n_poles,
+        efficiency,
+        power_factor,
+        current_rated,
+        starting_current_ratio,
+        motor_category,
+    )
+    return NAMEPLATE_METHODS[method](rating, **(method_options or {}))
 
 
-def estimate_from_catalog(method, rating, catalog, **options):
+def estimate_from_catalog(
+    method,
+    catalog,
+    power_rated,
+    voltage_rated,
+    speed_rated,
+    frequency_rated,
+    n_poles,
+    efficiency,
+    power_factor,
+    current_rated=None,
+    starting_current_ratio=6.0,
+    motor_category="N",
+    method_options=None,
+):
     """Run a catalog-data estimation method.
 
     Parameters
     ----------
     method : str
         One of ``CATALOG_METHODS``: "haque1", "natarajan_misra" or "haque2".
-    rating : _Rating
-        Rated data of the motor.
     catalog : dict
         Catalog data. It must contain the keys required by the method, listed
         in ``CATALOG_METHODS``.
-    **options
+    power_rated : float
+        Rated output power [W].
+    voltage_rated : float
+        Rated phase voltage [V].
+    speed_rated : float
+        Rated mechanical speed [rad/s].
+    frequency_rated : float
+        Rated electrical frequency [rad/s].
+    n_poles : int
+        Number of poles.
+    efficiency : float
+        Rated efficiency, between zero and one.
+    power_factor : float
+        Rated power factor, between zero and one.
+    current_rated : float, optional
+        Rated phase current [A]. Default is computed from the input power.
+    starting_current_ratio : float, optional
+        Ratio between starting and rated current.
+    motor_category : str, optional
+        Motor category, "N", "H" or "D".
+    method_options : dict, optional
         Options of the method.
 
     Returns
@@ -1147,5 +1233,17 @@ def estimate_from_catalog(method, rating, catalog, **options):
     missing = [name for name in CATALOG_METHODS[method] if catalog.get(name) is None]
     if missing:
         raise ValueError(f"The method '{method}' requires {', '.join(missing)}.")
+    rating = _Rating(
+        power_rated,
+        voltage_rated,
+        speed_rated,
+        frequency_rated,
+        n_poles,
+        efficiency,
+        power_factor,
+        current_rated,
+        starting_current_ratio,
+        motor_category,
+    )
     data = {name: catalog[name] for name in CATALOG_METHODS[method]}
-    return _CATALOG_FUNCTIONS[method](rating, **data, **options)
+    return _CATALOG_FUNCTIONS[method](rating, **data, **(method_options or {}))

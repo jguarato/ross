@@ -287,15 +287,28 @@ def test_rating_validation(chapman, kwargs):
         pe._Rating(**data)
 
 
-def test_estimate_from_catalog_requires_method_data(chapman):
+RATED = dict(
+    power_rated=Q_(25, "hp").to("W").m,
+    voltage_rated=460 / np.sqrt(3),
+    speed_rated=Q_(1724.598, "RPM").to("rad/s").m,
+    frequency_rated=FREQUENCY,
+    n_poles=4,
+    efficiency=0.829204,
+    power_factor=0.903327,
+    current_rated=31.2503,
+    starting_current_ratio=4.624842,
+)
+
+
+def test_estimate_from_catalog_requires_method_data():
     with pytest.raises(ValueError, match="efficiency_75"):
         pe.estimate_from_catalog(
-            "natarajan_misra", chapman, dict(starting_torque_ratio=1.5)
+            "natarajan_misra", dict(starting_torque_ratio=1.5), **RATED
         )
     with pytest.raises(ValueError, match="method"):
-        pe.estimate_from_catalog("unknown", chapman, {})
+        pe.estimate_from_catalog("unknown", {}, **RATED)
     with pytest.raises(ValueError, match="method"):
-        pe.estimate_from_nameplate("unknown", chapman)
+        pe.estimate_from_nameplate("unknown", **RATED)
 
 
 NAMEPLATE = dict(
@@ -314,18 +327,7 @@ NAMEPLATE = dict(
 @pytest.mark.parametrize("method", ["asdp", "lee"])
 def test_from_nameplate_matches_estimation(method):
     motor = MotorElement.from_nameplate(**NAMEPLATE, method=method, tag="M")
-    rating = pe._Rating(
-        Q_(25, "hp").to("W").m,
-        460 / np.sqrt(3),
-        Q_(1724.598, "RPM").to("rad/s").m,
-        FREQUENCY,
-        4,
-        0.829204,
-        0.903327,
-        31.2503,
-        4.624842,
-    )
-    result = pe.estimate_from_nameplate(method, rating)
+    result = pe.estimate_from_nameplate(method, **RATED)
 
     assert isinstance(motor, MotorElement)
     assert motor.tag == "M"

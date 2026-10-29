@@ -354,20 +354,20 @@ class MotorElement(Element):
         >>> motor.stator_resistance > 0
         True
         """
-        rating = parameter_estimation._Rating(
+        frequency_rated = cls._default_frequency(frequency_rated)
+        result = parameter_estimation.estimate_from_nameplate(
+            method,
             power_rated=power_rated,
             voltage_rated=voltage_rated,
             speed_rated=speed_rated,
-            frequency_rated=cls._default_frequency(frequency_rated),
+            frequency_rated=frequency_rated,
             n_poles=n_poles,
             efficiency=efficiency,
             power_factor=power_factor,
             current_rated=current_rated,
             starting_current_ratio=starting_current_ratio,
             motor_category=motor_category,
-        )
-        result = parameter_estimation.estimate_from_nameplate(
-            method, rating, **(method_options or {})
+            method_options=method_options,
         )
         return cls._from_estimation(
             result,
@@ -376,7 +376,7 @@ class MotorElement(Element):
             voltage_rated=voltage_rated,
             speed_rated=speed_rated,
             Ip_motor=Ip_motor,
-            frequency_rated=rating.frequency_rated,
+            frequency_rated=frequency_rated,
             n_poles=n_poles,
             **kwargs,
         )
@@ -525,18 +525,7 @@ class MotorElement(Element):
         >>> motor.rotor_resistance > 0
         True
         """
-        rating = parameter_estimation._Rating(
-            power_rated=power_rated,
-            voltage_rated=voltage_rated,
-            speed_rated=speed_rated,
-            frequency_rated=cls._default_frequency(frequency_rated),
-            n_poles=n_poles,
-            efficiency=efficiency,
-            power_factor=power_factor,
-            current_rated=current_rated,
-            starting_current_ratio=starting_current_ratio,
-            motor_category=motor_category,
-        )
+        frequency_rated = cls._default_frequency(frequency_rated)
         catalog = dict(
             starting_torque_ratio=starting_torque_ratio,
             maximum_torque_ratio=maximum_torque_ratio,
@@ -546,7 +535,19 @@ class MotorElement(Element):
             power_factor_50=power_factor_50,
         )
         result = parameter_estimation.estimate_from_catalog(
-            method, rating, catalog, **(method_options or {})
+            method,
+            catalog,
+            power_rated=power_rated,
+            voltage_rated=voltage_rated,
+            speed_rated=speed_rated,
+            frequency_rated=frequency_rated,
+            n_poles=n_poles,
+            efficiency=efficiency,
+            power_factor=power_factor,
+            current_rated=current_rated,
+            starting_current_ratio=starting_current_ratio,
+            motor_category=motor_category,
+            method_options=method_options,
         )
         return cls._from_estimation(
             result,
@@ -555,7 +556,7 @@ class MotorElement(Element):
             voltage_rated=voltage_rated,
             speed_rated=speed_rated,
             Ip_motor=Ip_motor,
-            frequency_rated=rating.frequency_rated,
+            frequency_rated=frequency_rated,
             n_poles=n_poles,
             **kwargs,
         )
