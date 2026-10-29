@@ -227,7 +227,7 @@ def asdp(rating, delta=0.05, acceptance_band=0.02, max_iterations=20000):
 
     References
     ----------
-    R. R. Bastos, "Aula 1 - Obtencao dos Parametros do Circuito Equivalente",
+    R. R. Bastos, "Aula 1 - Obtenção dos Parâmetros do Circuito Equivalente",
     lecture notes, 2021.
     """
     if not 0.0 < delta < 1.0:
