@@ -1,8 +1,9 @@
 """Equivalent circuit parameter estimation for three-phase induction motors.
 
 The methods in this module estimate the per-phase parameters of the T
-equivalent circuit (R1, X1, R2, X2, Xm and, when the method provides it, Rc)
-from nameplate or catalog data. They are used by
+equivalent circuit (stator and rotor resistances and reactances, magnetizing
+reactance and, when the method provides it, the core loss resistance Rc) from
+nameplate or catalog data. They are used by
 ``MotorElement.from_nameplate()`` and ``MotorElement.from_catalog()``.
 
 All quantities are SI and refer to the per-phase star equivalent circuit, with
@@ -46,10 +47,14 @@ class EstimationResult:
     ----------
     method : str
         Name of the estimation method.
-    R1, R2, X1, X2, Xm : float
-        Stator resistance, rotor resistance, stator reactance, rotor reactance
-        and magnetizing reactance [Ohm]. The rotor values are referred to the
+    stator_resistance, rotor_resistance : float
+        Stator and rotor resistances [Ohm]. The rotor value is referred to the
         stator.
+    stator_reactance, rotor_reactance : float
+        Stator and rotor leakage reactances [Ohm]. The rotor value is referred
+        to the stator.
+    mutual_reactance : float
+        Magnetizing reactance [Ohm].
     Rc : float, optional
         Core loss resistance [Ohm]. ``np.inf`` when the method has no core loss
         branch.
@@ -66,11 +71,11 @@ class EstimationResult:
     """
 
     method: str
-    R1: float
-    R2: float
-    X1: float
-    X2: float
-    Xm: float
+    stator_resistance: float
+    rotor_resistance: float
+    stator_reactance: float
+    rotor_reactance: float
+    mutual_reactance: float
     Rc: float = np.inf
     converged: bool = True
     iterations: int = 0
@@ -123,8 +128,8 @@ class _Rating:
         starting_current_ratio=6.0,
         motor_category="N",
     ):
-        self.output_power = float(power_rated)
-        self.phase_voltage = float(voltage_rated)
+        self.power_rated = float(power_rated)
+        self.voltage_rated = float(voltage_rated)
         self.speed_rated = float(speed_rated)
         self.frequency_rated = float(frequency_rated)
         self.n_poles = int(n_poles)
@@ -147,24 +152,24 @@ class _Rating:
         if not 0.0 < self.slip < 1.0:
             raise ValueError("The rated slip must be in (0, 1).")
 
-        self.input_power = self.output_power / self.efficiency
+        self.input_power = self.power_rated / self.efficiency
         if current_rated is None:
-            self.rated_current = self.input_power / (
-                3.0 * self.phase_voltage * self.power_factor
+            self.current_rated = self.input_power / (
+                3.0 * self.voltage_rated * self.power_factor
             )
         else:
-            self.rated_current = float(current_rated)
-        self.starting_current = self.starting_current_ratio * self.rated_current
+            self.current_rated = float(current_rated)
+        self.starting_current = self.starting_current_ratio * self.current_rated
 
     @property
     def line_voltage(self):
         """Rated line-to-line voltage [V]."""
-        return np.sqrt(3.0) * self.phase_voltage
+        return np.sqrt(3.0) * self.voltage_rated
 
     @property
     def power_hp(self):
         """Rated output power [hp]."""
-        return Q_(self.output_power, "W").to("hp").m
+        return Q_(self.power_rated, "W").to("hp").m
 
     @property
     def x1_fraction(self):
@@ -182,8 +187,8 @@ class _Rating:
         The base power is the rated output power and the base voltage is the
         rated phase voltage.
         """
-        i_base = self.output_power / (3.0 * self.phase_voltage)
-        return i_base, self.phase_voltage / i_base
+        i_base = self.power_rated / (3.0 * self.voltage_rated)
+        return i_base, self.voltage_rated / i_base
 
 
 def _parallel(z1, z2):
@@ -241,7 +246,7 @@ def asdp(rating, delta=0.05, acceptance_band=0.02, max_iterations=20000):
     slip = rating.slip
     fraction = rating.x1_fraction
     i_base, z_base = rating.per_unit_base()
-    i_rated = rating.rated_current / i_base
+    i_rated = rating.current_rated / i_base
     i_start = rating.starting_current / i_base
 
     x_total = 1.0 / rating.starting_current_ratio
@@ -339,11 +344,11 @@ def asdp(rating, delta=0.05, acceptance_band=0.02, max_iterations=20000):
 
     return EstimationResult(
         method="ASDP",
-        R1=float(r1 * z_base),
-        R2=float(r2 * z_base),
-        X1=float(fraction * x_t * z_base),
-        X2=float((1.0 - fraction) * x_t * z_base),
-        Xm=float(xm * z_base),
+        stator_resistance=float(r1 * z_base),
+        rotor_resistance=float(r2 * z_base),
+        stator_reactance=float(fraction * x_t * z_base),
+        rotor_reactance=float((1.0 - fraction) * x_t * z_base),
+        mutual_reactance=float(xm * z_base),
         Rc=float(rm * z_base),
         converged=converged,
         iterations=iteration,
@@ -353,7 +358,7 @@ def asdp(rating, delta=0.05, acceptance_band=0.02, max_iterations=20000):
     )
 
 
-def kueck(rating, known_r1=None, tolerance=1e-8, max_iterations=500):
+def kueck(rating, known_stator_resistance=None, tolerance=1e-8, max_iterations=500):
     """Estimate the parameters with the Kueck NEQ method.
 
     The rotor current is found by a relaxed fixed-point iteration. Friction and
@@ -368,7 +373,7 @@ def kueck(rating, known_r1=None, tolerance=1e-8, max_iterations=500):
     ----------
     rating : _Rating
         Rated data of the motor.
-    known_r1 : float, optional
+    known_stator_resistance : float, optional
         Stator resistance [Ohm]. Default is an empirical estimate from the
         rated power, voltage and number of poles.
     tolerance : float, optional
@@ -388,13 +393,13 @@ def kueck(rating, known_r1=None, tolerance=1e-8, max_iterations=500):
     ORNL/TM-13165, 1996.
     """
     slip = rating.slip
-    v_phase = rating.phase_voltage
-    i_rated = rating.rated_current
+    v_phase = rating.voltage_rated
+    i_rated = rating.current_rated
     i_start = rating.starting_current
     ratio = rating.x1_x2_ratio
-    p_out = rating.output_power
+    p_out = rating.power_rated
 
-    if known_r1 is None:
+    if known_stator_resistance is None:
         r1 = (
             0.00011
             * rating.n_poles**0.52
@@ -402,7 +407,7 @@ def kueck(rating, known_r1=None, tolerance=1e-8, max_iterations=500):
             * rating.line_voltage**2
         )
     else:
-        r1 = float(known_r1)
+        r1 = float(known_stator_resistance)
     if r1 <= 0.0:
         raise ValueError("The stator resistance must be positive.")
 
@@ -486,11 +491,11 @@ def kueck(rating, known_r1=None, tolerance=1e-8, max_iterations=500):
 
     return EstimationResult(
         method="Kueck",
-        R1=float(r1),
-        R2=float(r2),
-        X1=float(x1),
-        X2=float(x2),
-        Xm=float(xm),
+        stator_resistance=float(r1),
+        rotor_resistance=float(r2),
+        stator_reactance=float(x1),
+        rotor_reactance=float(x2),
+        mutual_reactance=float(xm),
         Rc=float(rc),
         converged=converged,
         iterations=iteration,
@@ -555,7 +560,7 @@ def lee(
 
     p_core = core_loss_fraction * p_loss
     p_conv = 1.0 + mechanical_loss_fraction * p_loss
-    p_conv += _stray_loss_fraction(rating.output_power)
+    p_conv += _stray_loss_fraction(rating.power_rated)
     p_ag = p_conv / (1.0 - slip)
 
     r1 = (p_in - p_ag - p_core) / abs(i1) ** 2
@@ -599,11 +604,11 @@ def lee(
 
     return EstimationResult(
         method="Lee",
-        R1=float(r1 * z_base),
-        R2=float(r2 * z_base),
-        X1=float(x1 * z_base),
-        X2=float(x2 * z_base),
-        Xm=float(xm * z_base),
+        stator_resistance=float(r1 * z_base),
+        rotor_resistance=float(r2 * z_base),
+        stator_reactance=float(x1 * z_base),
+        rotor_reactance=float(x2 * z_base),
+        mutual_reactance=float(xm * z_base),
         Rc=float(rc * z_base),
         iterations=iteration,
         residual=error,
@@ -664,8 +669,8 @@ def haque1(
     if not 0.0 < power_factor_50 <= 1.0:
         raise ValueError("power_factor_50 must be in (0, 1].")
 
-    p_out = rating.output_power
-    v_phase = rating.phase_voltage
+    p_out = rating.power_rated
+    v_phase = rating.voltage_rated
     eta = rating.efficiency
     pf = rating.power_factor
     slip = rating.slip
@@ -735,11 +740,11 @@ def haque1(
 
     return EstimationResult(
         method="Haque 1",
-        R1=float(r1),
-        R2=float(r2),
-        X1=float(x1),
-        X2=float(x2),
-        Xm=float(xm),
+        stator_resistance=float(r1),
+        rotor_resistance=float(r2),
+        stator_reactance=float(x1),
+        rotor_reactance=float(x2),
+        mutual_reactance=float(xm),
         Rc=float(rc),
         iterations=iteration,
         residual=error,
@@ -799,12 +804,12 @@ def natarajan_misra(
 
     See also [1] in the module documentation, for the corrections adopted.
     """
-    p_out = rating.output_power
-    v_phase = rating.phase_voltage
+    p_out = rating.power_rated
+    v_phase = rating.voltage_rated
     pf = rating.power_factor
     slip = rating.slip
 
-    i_rated = rating.rated_current
+    i_rated = rating.current_rated
     i_75 = 0.75 * p_out / (3.0 * v_phase * efficiency_75 * power_factor_75)
     i_50 = 0.50 * p_out / (3.0 * v_phase * efficiency_50 * power_factor_50)
 
@@ -848,11 +853,11 @@ def natarajan_misra(
 
     return EstimationResult(
         method="Natarajan-Misra",
-        R1=float(r1),
-        R2=float(r2),
-        X1=float(x1_x2_ratio * x2),
-        X2=float(x2),
-        Xm=float(xm),
+        stator_resistance=float(r1),
+        rotor_resistance=float(r2),
+        stator_reactance=float(x1_x2_ratio * x2),
+        rotor_reactance=float(x2),
+        mutual_reactance=float(xm),
         Rc=float(rc),
         residual=abs(float(error_50)),
         extra={"K": float(k), "Pcore": float(p_core), "Pfw": float(0.5 * k)},
@@ -917,9 +922,9 @@ def haque2(
     if max_nfev <= 0:
         raise ValueError("max_nfev must be positive.")
 
-    v1 = rating.phase_voltage
+    v1 = rating.voltage_rated
     s_r = rating.slip
-    p_out = rating.output_power
+    p_out = rating.power_rated
     p_in = rating.input_power
     q_in = p_in * np.tan(np.arccos(rating.power_factor))
     i1_rated = p_in / (3.0 * v1 * rating.power_factor)
@@ -1058,11 +1063,11 @@ def haque2(
     x1, r20, x20, xm, p_rot = solution.x
     return EstimationResult(
         method="Haque 2",
-        R1=float(alpha_r * r20),
-        R2=float(r20),
-        X1=float(x1),
-        X2=float(x20),
-        Xm=float(xm),
+        stator_resistance=float(alpha_r * r20),
+        rotor_resistance=float(r20),
+        stator_reactance=float(x1),
+        rotor_reactance=float(x20),
+        mutual_reactance=float(xm),
         Rc=float(final["rc"]),
         converged=converged,
         iterations=int(solution.nfev),

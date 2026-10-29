@@ -302,7 +302,7 @@ class MotorElement(Element):
             Estimation method: "asdp", "kueck" or "lee".
             Default is "kueck".
         method_options : dict, optional
-            Options of the estimation method, such as ``{"known_r1": 2.44}``
+            Options of the estimation method, such as ``{"known_stator_resistance": 2.44}``
             for "kueck" (see :py:mod:`ross.motors.parameter_estimation`).
         frequency_rated : float, optional, pint.Quantity
             Rated frequency [rad/s].
@@ -574,11 +574,11 @@ class MotorElement(Element):
                 stacklevel=4,
             )
         return cls(
-            stator_resistance=result.R1,
-            rotor_resistance=result.R2,
-            stator_reactance=result.X1,
-            rotor_reactance=result.X2,
-            mutual_reactance=result.Xm,
+            stator_resistance=result.stator_resistance,
+            rotor_resistance=result.rotor_resistance,
+            stator_reactance=result.stator_reactance,
+            rotor_reactance=result.rotor_reactance,
+            mutual_reactance=result.mutual_reactance,
             **kwargs,
         )
 

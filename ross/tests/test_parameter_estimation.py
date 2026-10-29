@@ -19,12 +19,14 @@ FREQUENCY = 2 * np.pi * 60
 
 def circuit_at_slip(result, slip, voltage, rotor=None, series_resistance=0.0):
     """Solve the T equivalent circuit of an estimation result at a slip."""
-    R2, X2 = (result.R2, result.X2) if rotor is None else rotor
-    z1 = result.R1 + 1j * result.X1
+    R2, X2 = (
+        (result.rotor_resistance, result.rotor_reactance) if rotor is None else rotor
+    )
+    z1 = result.stator_resistance + 1j * result.stator_reactance
     if np.isinf(result.Rc):
-        z_mag = 1j * result.Xm
+        z_mag = 1j * result.mutual_reactance
     else:
-        z_mag = 1 / (1 / result.Rc + 1 / (1j * result.Xm))
+        z_mag = 1 / (1 / result.Rc + 1 / (1j * result.mutual_reactance))
     z2 = R2 / slip + series_resistance + 1j * X2
     i1 = voltage / (z1 + z_mag * z2 / (z_mag + z2))
     i2 = (voltage - i1 * z1) / z2
@@ -70,7 +72,7 @@ def large_motor():
 
 def rated_point(rating, result, series_resistance=0.0):
     return circuit_at_slip(
-        result, rating.slip, rating.phase_voltage, series_resistance=series_resistance
+        result, rating.slip, rating.voltage_rated, series_resistance=series_resistance
     )
 
 
@@ -84,9 +86,9 @@ def test_asdp_reproduces_rated_point(rating_name, request):
     # ASDP stops when every rated quantity is within a 2 % band; the stopping
     # tolerance is the only source of error of this check.
     band = 0.02
-    assert_allclose(point["current"], rating.rated_current, rtol=band)
+    assert_allclose(point["current"], rating.current_rated, rtol=band)
     assert_allclose(point["power_factor"], rating.power_factor, rtol=band)
-    assert_allclose(point["converted_power"], rating.output_power, rtol=band)
+    assert_allclose(point["converted_power"], rating.power_rated, rtol=band)
     assert_allclose(
         point["converted_power"] / point["input_power"], rating.efficiency, rtol=band
     )
@@ -99,33 +101,33 @@ def test_lee_reproduces_rated_point(rating_name, request):
     point = rated_point(rating, result)
 
     input_current = rating.input_power / (
-        3 * rating.phase_voltage * rating.power_factor
+        3 * rating.voltage_rated * rating.power_factor
     )
     # Lee stops when the parameters change less than 1e-3 pu per iteration.
     assert_allclose(point["current"], input_current, rtol=1e-3)
     assert_allclose(point["power_factor"], rating.power_factor, rtol=1e-3)
     mechanical_and_stray = 0.14 * (1 / rating.efficiency - 1) + pe._stray_loss_fraction(
-        rating.output_power
+        rating.power_rated
     )
     assert_allclose(
-        point["converted_power"] / rating.output_power,
+        point["converted_power"] / rating.power_rated,
         1 + mechanical_and_stray,
         rtol=1e-3,
     )
 
 
-def test_kueck_known_r1_reproduces_rated_point(chapman):
-    result = pe.kueck(chapman, known_r1=0.641)
+def test_kueck_known_stator_resistance_reproduces_rated_point(chapman):
+    result = pe.kueck(chapman, known_stator_resistance=0.641)
     point = rated_point(chapman, result, result.extra["Rsll"])
 
-    assert result.R1 == 0.641
+    assert result.stator_resistance == 0.641
     # The relaxed iteration ends with a physical but not converged solution, so
     # the rated point is reproduced within 2 %, not to the stopping tolerance.
-    assert_allclose(point["current"], chapman.rated_current, rtol=2e-2)
+    assert_allclose(point["current"], chapman.current_rated, rtol=2e-2)
     assert_allclose(point["power_factor"], chapman.power_factor, rtol=2e-2)
     assert_allclose(
         point["converted_power"],
-        chapman.output_power + result.extra["Pfw"],
+        chapman.power_rated + result.extra["Pfw"],
         rtol=3e-2,
     )
 
@@ -133,7 +135,7 @@ def test_kueck_known_r1_reproduces_rated_point(chapman):
 def test_kueck_estimated_r1_formula(chapman):
     result = pe.kueck(chapman)
     expected = 0.00011 * 4**0.52 * 25 ** (-1.26) * 460**2
-    assert_allclose(result.R1, expected, rtol=1e-3)
+    assert_allclose(result.stator_resistance, expected, rtol=1e-3)
 
 
 @pytest.mark.parametrize(
@@ -157,7 +159,7 @@ def test_haque1_reproduces_rated_point(
     assert_allclose(point["power_factor"], rating.power_factor, rtol=1e-6)
     assert_allclose(
         point["converted_power"],
-        rating.output_power + result.extra["Pfw"],
+        rating.power_rated + result.extra["Pfw"],
         rtol=1e-6,
     )
 
@@ -166,19 +168,24 @@ def test_haque1_leakage_split_follows_category(chapman):
     categories = {"N": 0.4, "H": 0.3, "D": 0.5}
     for category, fraction in categories.items():
         rating = pe._Rating(
-            chapman.output_power,
-            chapman.phase_voltage,
+            chapman.power_rated,
+            chapman.voltage_rated,
             chapman.speed_rated,
             FREQUENCY,
             4,
             chapman.efficiency,
             chapman.power_factor,
-            chapman.rated_current,
+            chapman.current_rated,
             chapman.starting_current_ratio,
             category,
         )
         result = pe.haque1(rating, 1.5, 0.80, 0.80)
-        assert_allclose(result.X1 / (result.X1 + result.X2), fraction, rtol=1e-12)
+        assert_allclose(
+            result.stator_reactance
+            / (result.stator_reactance + result.rotor_reactance),
+            fraction,
+            rtol=1e-12,
+        )
 
 
 def test_natarajan_misra_loss_balance(chapman):
@@ -192,7 +199,7 @@ def test_natarajan_misra_loss_balance(chapman):
     )
     result = pe.natarajan_misra(chapman, **data)
 
-    resistance = result.R1 + result.R2
+    resistance = result.stator_resistance + result.rotor_resistance
     constant_loss = result.extra["K"]
     for load, efficiency, power_factor in [
         (0.75, data["efficiency_75"], data["power_factor_75"]),
@@ -200,17 +207,21 @@ def test_natarajan_misra_loss_balance(chapman):
     ]:
         current = (
             load
-            * chapman.output_power
-            / (3 * chapman.phase_voltage * efficiency * power_factor)
+            * chapman.power_rated
+            / (3 * chapman.voltage_rated * efficiency * power_factor)
         )
-        loss = load * chapman.output_power * (1 / efficiency - 1)
+        loss = load * chapman.power_rated * (1 / efficiency - 1)
         # At 50 % load the point is not used in the fit, so the loss model
         # reproduces it only approximately; the fitted points are exact.
         rtol = 1e-9 if load == 0.75 else 5e-2
         assert_allclose(3 * current**2 * resistance + constant_loss, loss, rtol=rtol)
 
     assert result.residual < 5e-2
-    assert_allclose(result.X1 / result.X2, chapman.x1_x2_ratio, rtol=1e-12)
+    assert_allclose(
+        result.stator_reactance / result.rotor_reactance,
+        chapman.x1_x2_ratio,
+        rtol=1e-12,
+    )
 
 
 def test_natarajan_misra_rejects_inconsistent_torque_ratios(chapman):
@@ -223,22 +234,22 @@ def test_haque2_reproduces_catalog_data(chapman, starting, maximum):
     result = pe.haque2(chapman, starting, maximum)
 
     assert result.converged
-    voltage = chapman.phase_voltage
+    voltage = chapman.voltage_rated
     rated = circuit_at_slip(result, chapman.slip, voltage)
     reactive_power = chapman.input_power * np.tan(np.arccos(chapman.power_factor))
     assert_allclose(rated["input_power"], chapman.input_power, rtol=1e-8)
     assert_allclose(rated["reactive_power"], reactive_power, rtol=1e-8)
     assert_allclose(
-        rated["converted_power"] - result.extra["Pfw"], chapman.output_power, rtol=1e-8
+        rated["converted_power"] - result.extra["Pfw"], chapman.power_rated, rtol=1e-8
     )
 
     sm = result.extra["smax"]
     rotor_at_start = (
-        (0.5 + 0.5 * np.sqrt(1 / sm)) * result.R2,
-        (0.4 + 0.6 * np.sqrt(sm / 1)) * result.X2,
+        (0.5 + 0.5 * np.sqrt(1 / sm)) * result.rotor_resistance,
+        (0.4 + 0.6 * np.sqrt(sm / 1)) * result.rotor_reactance,
     )
     start = circuit_at_slip(result, 1.0, voltage, rotor=rotor_at_start)
-    rated_torque = (chapman.output_power + result.extra["Pfw"]) / chapman.speed_rated
+    rated_torque = (chapman.power_rated + result.extra["Pfw"]) / chapman.speed_rated
     omega_sync = 2 * FREQUENCY / 4
     assert_allclose(
         start["air_gap_power"] / omega_sync / rated_torque, starting, rtol=1e-8
@@ -263,8 +274,8 @@ def test_haque2_warns_when_data_is_inconsistent(chapman):
 )
 def test_rating_validation(chapman, kwargs):
     data = dict(
-        power_rated=chapman.output_power,
-        voltage_rated=chapman.phase_voltage,
+        power_rated=chapman.power_rated,
+        voltage_rated=chapman.voltage_rated,
         speed_rated=chapman.speed_rated,
         frequency_rated=FREQUENCY,
         n_poles=4,
@@ -326,7 +337,13 @@ def test_from_nameplate_matches_estimation(method):
             motor.rotor_reactance,
             motor.mutual_reactance,
         ],
-        [result.R1, result.R2, result.X1, result.X2, result.Xm],
+        [
+            result.stator_resistance,
+            result.rotor_resistance,
+            result.stator_reactance,
+            result.rotor_reactance,
+            result.mutual_reactance,
+        ],
     )
     assert_allclose(motor.power_rated, Q_(25, "hp").to("W").m)
     assert_allclose(motor.frequency_rated, FREQUENCY)
@@ -335,7 +352,7 @@ def test_from_nameplate_matches_estimation(method):
 @pytest.mark.filterwarnings("ignore:The Kueck estimation did not converge")
 def test_from_nameplate_method_options():
     motor = MotorElement.from_nameplate(
-        **NAMEPLATE, method="kueck", method_options=dict(known_r1=0.641)
+        **NAMEPLATE, method="kueck", method_options=dict(known_stator_resistance=0.641)
     )
     assert motor.stator_resistance == 0.641
 

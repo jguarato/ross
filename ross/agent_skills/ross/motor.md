@@ -70,7 +70,7 @@ motor = rs.MotorElement.from_catalog(
 ```
 
 - `haque1` also needs `efficiency_50` and `power_factor_50`; `natarajan_misra` needs `efficiency_75`, `power_factor_75`, `efficiency_50`, `power_factor_50` and both torque ratios.
-- Options of a method go in `method_options`, for example `{"known_r1": 2.44}` for `"kueck"`. Other `MotorElement` arguments (`tag`, `Ip_load`, `n_poles`, ...) are accepted as keywords.
+- Options of a method go in `method_options`, for example `{"known_stator_resistance": 2.44}` for `"kueck"`. Other `MotorElement` arguments (`tag`, `Ip_load`, `n_poles`, ...) are accepted as keywords.
 - A `UserWarning` is issued when the method does not converge; check the estimated values before using them.
 
 ## Motor-only analyses
