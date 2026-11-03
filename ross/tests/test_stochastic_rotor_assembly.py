@@ -192,6 +192,23 @@ def test_no_random_elements():
     assert "at least one random element is required." in str(ex.value)
 
 
+def test_st_rotor_keeps_input_lists(rotor1):
+    shaft_elem = [ShaftElement(0.25, 0, 0.05, material=steel) for _ in range(6)]
+    brg = [
+        ST_BearingElement(n=n, kxx=[1e6, 2e6], cxx=[1e3, 2e3], is_random=["kxx", "cxx"])
+        for n in (0, 6)
+    ]
+    shaft_before = list(shaft_elem)
+    bearings_before = list(brg)
+
+    ST_Rotor(shaft_elem, bearing_elements=brg)
+
+    assert shaft_elem == shaft_before
+    assert brg == bearings_before
+    assert all(isinstance(b, ST_BearingElement) for b in brg)
+    assert ST_Rotor(shaft_elem, bearing_elements=brg).RV_size == 2
+
+
 def test_getter_and_setter_error_messages():
     rotor = st_rotor_example()
     with pytest.raises(KeyError) as ex:

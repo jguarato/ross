@@ -99,12 +99,10 @@ class ST_Rotor(object):
         rated_w=None,
         tag=None,
     ):
-        if disk_elements is None:
-            disk_elements = []
-        if bearing_elements is None:
-            bearing_elements = []
-        if point_mass_elements is None:
-            point_mass_elements = []
+        shaft_elements = list(shaft_elements)
+        disk_elements = list(disk_elements or [])
+        bearing_elements = list(bearing_elements or [])
+        point_mass_elements = list(point_mass_elements or [])
 
         groups = [
             ("shaft_elements", shaft_elements, ST_ShaftElement),
