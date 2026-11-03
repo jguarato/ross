@@ -75,7 +75,7 @@ class ST_BearingElement:
     >>> import numpy as np
     >>> import ross.stochastic as srs
 
-    # Uncertanties on constant bearing coefficients
+    # Uncertainties on constant bearing coefficients
 
     >>> s = 10
     >>> kxx = np.random.uniform(1e6, 2e6, s)
@@ -88,7 +88,7 @@ class ST_BearingElement:
     >>> len(list(iter(elms)))
     10
 
-    # Uncertanties on bearing coefficients varying with speed
+    # Uncertainties on bearing coefficients varying with speed
 
     >>> s = 5
     >>> kxx = [np.random.uniform(1e6, 2e6, s),
@@ -274,7 +274,7 @@ class ST_BearingElement:
         is_random : list
             List of the object attributes to become stochastic.
         *args : dict
-            Dictionary instanciating the ross.BearingElement class.
+            Dictionary instantiating the ross.BearingElement class.
             The attributes that are supposed to be stochastic should be
             set as lists of random variables.
 

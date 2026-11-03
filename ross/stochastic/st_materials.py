@@ -198,7 +198,7 @@ class ST_Material:
         is_random : list
             List of the object attributes to become stochastic.
         *args : dict
-            Dictionary instanciating the ross.Material class.
+            Dictionary instantiating the ross.Material class.
             The attributes that are supposed to be stochastic should be
             set as lists of random variables.
 

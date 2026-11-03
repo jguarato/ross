@@ -18,7 +18,6 @@ from ross.plotly_theme import tableau_colors
 from ross.probe import check_probes
 from ross.units import Q_
 
-# set Plotly palette of colors
 colors1 = px.colors.qualitative.Dark24
 colors2 = px.colors.qualitative.Light24
 
@@ -155,10 +154,8 @@ class ST_Results(ABC):
 class ST_CampbellResults(ST_Results):
     """Store stochastic results and provide plots for Campbell Diagram.
 
-    It's possible to visualize multiples harmonics in a single plot to check
+    It's possible to visualize multiple harmonics in a single plot to check
     other speeds which also excite a specific natural frequency.
-    Two options for plooting are available: Matplotlib and Bokeh. The user
-    chooses between them using the attribute plot_type. The default is bokeh
 
     Parameters
     ----------
@@ -1177,7 +1174,6 @@ class ST_TimeResponseResults(ST_Results):
                         y=Q_(np.percentile(probe_resp, p, axis=0), "m")
                         .to(displacement_units)
                         .m,
-                        # y=np.percentile(probe_resp, p, axis=0),
                         mode="lines",
                         opacity=0.6,
                         line=dict(width=2.5),
@@ -1602,7 +1598,7 @@ class ST_ForcedResponseResults(ST_Results):
 
         for j in range(size):
             for i, f in enumerate(self.frequency_range):
-                # Foward and Backward vectors
+                # Forward and Backward vectors
                 fow = response[j, dofx, i] / 2 + Rel_ang * response[j, dofy, i] / 2
                 back = (
                     np.conj(response[j, dofx, i]) / 2
@@ -1680,6 +1676,9 @@ class ST_ForcedResponseResults(ST_Results):
             To use peak to peak use the prefix 'pkpk_' (e.g. pkpk_m)
         fig : Plotly graph_objects.Figure()
             The figure object with the plot.
+        line_shape : str, optional
+            Line interpolation style for the Plotly traces (e.g. "linear", "spline").
+            Default is "spline".
         kwargs : optional
             Additional key word arguments can be passed to change the plot layout only
             (e.g. width=1000, height=800, ...).
@@ -1688,10 +1687,7 @@ class ST_ForcedResponseResults(ST_Results):
         Returns
         -------
         fig : Plotly graph_objects.Figure()
-            Bokeh plot axes with magnitude plot.
-        line_shape : str, optional
-            Line interpolation style for the Plotly traces (e.g. "linear", "spline").
-            Default is "spline".
+            Plotly figure with the magnitude plot.
         """
         frequency_range = Q_(self.frequency_range, "rad/s").to(frequency_units).m
 

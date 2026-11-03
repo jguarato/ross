@@ -239,7 +239,7 @@ class ST_ShaftElement:
         is_random : list
             List of the object attributes to become stochastic.
         *args : dict
-            Dictionary instanciating the ross.ShaftElement class.
+            Dictionary instantiating the ross.ShaftElement class.
             The attributes that are supposed to be stochastic should be
             set as lists of random variables.
 

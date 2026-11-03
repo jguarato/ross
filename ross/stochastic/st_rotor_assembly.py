@@ -39,8 +39,14 @@ class ST_Rotor(object):
         List with the disk elements
     bearing_elements : list
         List with the bearing elements
-    point_mass_elements: list
+    point_mass_elements : list
         List with the point mass elements
+    min_w : float, pint.Quantity, optional
+        Minimum operating speed of the rotor (rad/s).
+    max_w : float, pint.Quantity, optional
+        Maximum operating speed of the rotor (rad/s).
+    rated_w : float, pint.Quantity, optional
+        Rated operating speed of the rotor (rad/s).
     tag : str
         A tag for the rotor
 
@@ -150,14 +156,11 @@ class ST_Rotor(object):
             tag=tag,
         )
 
-        # Assembling random rotors
         self.is_random = is_random
         self.attribute_dict = attribute_dict
 
-        # common parameters
         self.RV_size = RV_size
 
-        # collect a series of attributes from a rotor instance
         self._get_rotor_args()
 
     def __iter__(self):
@@ -239,7 +242,7 @@ class ST_Rotor(object):
     def _get_rotor_args(self):
         """Get relevant attributes from a rotor system.
 
-        This auxiliary funtion get some relevant attributes from a rotor system, such as
+        This auxiliary function get some relevant attributes from a rotor system, such as
         the nodes numbers, nodes positions and number of degrees of freedom, and add it
         to the stochastic rotor as attribute. If an attribute is somehow afected by a
         random variable, the function returns its mean.
@@ -271,7 +274,7 @@ class ST_Rotor(object):
     def _get_args(idx, *args):
         """Build new list of arguments from a random list of arguments.
 
-        This funtion takes a list with random values or with lists of random
+        This function takes a list with random values or with lists of random
         values and a build an organized list to instantiate functions
         correctly.
 
@@ -317,7 +320,7 @@ class ST_Rotor(object):
         is_random : list
             List of the object attributes to become stochastic.
         *args : dict
-            Dictionary instanciating the ross.Rotor class.
+            Dictionary instantiating the ross.Rotor class.
             The attributes that are supposed to be stochastic should be
             set as lists of random variables.
 
@@ -367,7 +370,7 @@ class ST_Rotor(object):
         is_random : list
             List of the object attributes to become stochastic.
         *args : dict
-            Dictionary instanciating the ross.Rotor class.
+            Dictionary instantiating the ross.Rotor class.
             The attributes that are supposed to be stochastic should be
             set as lists of random variables.
 
@@ -383,7 +386,7 @@ class ST_Rotor(object):
         return f_list
 
     def run_campbell(self, speed_range, frequencies=6, frequency_type="wd"):
-        """Stochastic Campbell diagram for multiples rotor systems.
+        """Stochastic Campbell diagram for multiple rotor systems.
 
         This function will calculate the damped or undamped natural frequencies
         for a speed range for every rotor instance.
@@ -432,7 +435,6 @@ class ST_Rotor(object):
         log_dec = np.zeros((frequencies, CAMP_size, RV_size))
         mode_type = []
 
-        # Monte Carlo - results storage
         for i, rotor in enumerate(iter(self)):
             results = rotor.run_campbell(speed_range, frequencies, frequency_type)
             mode_type.append(results.sort_by_mode_type()[0, :])
@@ -452,7 +454,7 @@ class ST_Rotor(object):
         speed_range=None,
         modes=None,
     ):
-        """Stochastic frequency response for multiples rotor systems.
+        """Stochastic frequency response for multiple rotor systems.
 
         This method returns the frequency response for every rotor instance,
         given a range of frequencies, the degrees of freedom to be
@@ -507,7 +509,6 @@ class ST_Rotor(object):
         velc_resp = np.empty((FRF_size, RV_size), dtype=complex)
         accl_resp = np.empty((FRF_size, RV_size), dtype=complex)
 
-        # Monte Carlo - results storage
         for i, rotor in enumerate(iter(self)):
             results = rotor.run_freq_response(speed_range, modes)
             freq_resp[:, i] = results.freq_resp[out, inp, :]
@@ -521,7 +522,7 @@ class ST_Rotor(object):
         return results
 
     def run_time_response(self, speed, F, t, ic=None):
-        """Stochastic time response for multiples rotor systems.
+        """Stochastic time response for multiple rotor systems.
 
         This function will take a rotor object and plot its time response
         given a force and a time. This method displays the amplitude vs time or the
@@ -594,23 +595,17 @@ class ST_Rotor(object):
         xout = np.zeros((RV_size, t_size, 2 * ndof))
         yout = np.zeros((RV_size, t_size, ndof))
 
-        # F is not a random variable
         if len(F.shape) == 2:
-            # Monte Carlo - results storage
             for i, rotor in enumerate(iter(self)):
                 t_, y, x = rotor.time_response(speed, F, t, ic)
                 xout[i] = x
                 yout[i] = y
 
-        # F is a random variable
         if len(F.shape) == 3:
-            # Monte Carlo - results storage
-            i = 0
-            for rotor, f in zip(iter(self), F, strict=True):
+            for i, (rotor, f) in enumerate(zip(iter(self), F, strict=True)):
                 t_, y, x = rotor.time_response(speed, f, t, ic)
                 xout[i] = x
                 yout[i] = y
-                i += 1
 
         results = ST_TimeResponseResults(
             t,
@@ -633,10 +628,10 @@ class ST_Rotor(object):
         speed_range=None,
         modes=None,
     ):
-        """Stochastic unbalance response for multiples rotor systems.
+        """Stochastic unbalance response for multiple rotor systems.
 
         This method returns the unbalanced response for every rotor instance,
-        given magnitide and phase of the unbalance, the node where
+        given magnitude and phase of the unbalance, the node where
         it's applied and a frequency range.
 
         Magnitude and phase parameters can be passed as random variables.
@@ -669,7 +664,7 @@ class ST_Rotor(object):
         results.magnitude : array
             Magnitude of the frequency response for node for each frequency.
         results.phase : array
-            Phase of the frequency response for node for each frequencye.
+            Phase of the frequency response for node for each frequency.
 
         Example
         -------

@@ -172,7 +172,7 @@ class ST_DiskElement:
         is_random : list
             List of the object attributes to become stochastic.
         *args : dict
-            Dictionary instanciating the ross.DiskElement class.
+            Dictionary instantiating the ross.DiskElement class.
             The attributes that are supposed to be stochastic should be
             set as lists of random variables.
 
