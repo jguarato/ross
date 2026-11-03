@@ -520,25 +520,25 @@ class ST_Rotor(object):
 
         return results
 
-    def run_time_response(self, speed, force, time_range, ic=None):
+    def run_time_response(self, speed, F, t, ic=None):
         """Stochastic time response for multiples rotor systems.
 
         This function will take a rotor object and plot its time response
         given a force and a time. This method displays the amplitude vs time or the
         rotor orbits.
-        The force and ic parameters can be passed as random variables.
+        The F and ic parameters can be passed as random variables.
 
         Parameters
         ----------
         speed: float
             Rotor speed
-        force : 2-dimensional array, 3-dimensional array
+        F : 2-dimensional array, 3-dimensional array
             Force array (needs to have the same number of rows as time array).
             Each column corresponds to a dof and each row to a time step.
             Inputing a 3-dimensional array, the method considers the force as
             a random variable. The 3rd dimension must have the same size than
             ST_Rotor.RV_size
-        time_range : 1-dimensional array
+        t : 1-dimensional array
             Time array.
         ic : 1-dimensional array, 2-dimensional array, optional
             The initial conditions on the state vector (zero by default).
@@ -547,7 +547,7 @@ class ST_Rotor(object):
 
         Returns
         -------
-        results.time_range : array
+        results.t : array
             Array containing the time array.
         results.yout : array
             System response.
@@ -583,7 +583,7 @@ class ST_Rotor(object):
         >>> fig = results.plot_3d(conf_interval=[90])
         >>> # fig.show()
         """
-        t_size = len(time_range)
+        t_size = len(t)
         RV_size = self.RV_size
         ndof = self.ndof
         number_dof = self.number_dof
@@ -594,26 +594,26 @@ class ST_Rotor(object):
         xout = np.zeros((RV_size, t_size, 2 * ndof))
         yout = np.zeros((RV_size, t_size, ndof))
 
-        # force is not a random variable
-        if len(force.shape) == 2:
+        # F is not a random variable
+        if len(F.shape) == 2:
             # Monte Carlo - results storage
             for i, rotor in enumerate(iter(self)):
-                t_, y, x = rotor.time_response(speed, force, time_range, ic)
+                t_, y, x = rotor.time_response(speed, F, t, ic)
                 xout[i] = x
                 yout[i] = y
 
-        # force is a random variable
-        if len(force.shape) == 3:
+        # F is a random variable
+        if len(F.shape) == 3:
             # Monte Carlo - results storage
             i = 0
-            for rotor, F in zip(iter(self), force, strict=True):
-                t_, y, x = rotor.time_response(speed, F, time_range, ic)
+            for rotor, f in zip(iter(self), F, strict=True):
+                t_, y, x = rotor.time_response(speed, f, t, ic)
                 xout[i] = x
                 yout[i] = y
                 i += 1
 
         results = ST_TimeResponseResults(
-            time_range,
+            t,
             yout,
             xout,
             number_dof,
@@ -630,7 +630,7 @@ class ST_Rotor(object):
         node,
         unbalance_magnitude,
         unbalance_phase,
-        frequency_range=None,
+        speed_range=None,
         modes=None,
     ):
         """Stochastic unbalance response for multiples rotor systems.
@@ -653,7 +653,7 @@ class ST_Rotor(object):
             keep a node deterministic, repeat its value in every sample.
         unbalance_phase : list, float, pint.Quantity
             Unbalance phase (rad). Follows the same layout as unbalance_magnitude.
-        frequency_range : list, float, optional
+        speed_range : list, float, optional
             Array with the desired range of frequencies.
             Default is 0 to 1.5 x highest damped natural frequency.
         modes : list, optional
@@ -705,13 +705,11 @@ class ST_Rotor(object):
         ...     amplitude_units="m/s**2"
         ... )
         """
-        if frequency_range is None:
-            frequency_range = (
-                list(self)[0].run_freq_response(speed_range=None).speed_range
-            )
+        if speed_range is None:
+            speed_range = list(self)[0].run_freq_response(speed_range=None).speed_range
 
         RV_size = self.RV_size
-        freq_size = len(frequency_range)
+        freq_size = len(speed_range)
         ndof = self.ndof
 
         forced_resp = np.zeros((RV_size, ndof, freq_size), dtype=complex)
@@ -743,7 +741,7 @@ class ST_Rotor(object):
                 node,
                 sample(unbalance_magnitude, i),
                 sample(unbalance_phase, i),
-                frequency_range,
+                speed_range,
                 modes,
             )
             forced_resp[i] = results.forced_resp
@@ -752,7 +750,7 @@ class ST_Rotor(object):
 
         results = ST_ForcedResponseResults(
             forced_resp=forced_resp,
-            frequency_range=frequency_range,
+            frequency_range=speed_range,
             velc_resp=velc_resp,
             accl_resp=accl_resp,
             number_dof=self.number_dof,

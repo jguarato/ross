@@ -481,6 +481,22 @@ def test_run_unbalance_response_wrong_sample_size(rotor1):
     )
 
 
+def test_run_keyword_names_match_rotor(rotor1):
+    speed_range = np.linspace(0, 500, 6)
+    results = rotor1.run_unbalance_response(
+        node=3,
+        unbalance_magnitude=[0.001, 0.002],
+        unbalance_phase=0.0,
+        speed_range=speed_range,
+    )
+    assert_allclose(results.frequency_range, speed_range)
+
+    t = np.linspace(0, 1, 11)
+    F = np.zeros((t.size, rotor1.ndof))
+    results = rotor1.run_time_response(speed=100.0, F=F, t=t)
+    assert_allclose(results.t, t)
+
+
 def test_run_unbalance_response(rotor1):
     freq_range = np.linspace(0, 500, 21)
     n = 3
