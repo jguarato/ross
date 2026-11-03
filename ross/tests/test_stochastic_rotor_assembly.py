@@ -141,7 +141,7 @@ def test_st_point_mass_elements_odd_length():
 
     with pytest.raises(ValueError) as ex:
         ST_Rotor(shaft_elm, [disk0], [brg0, brg1, sup0, sup1], [pm0, pm1])
-    assert "not all random point mass lists have same length." in str(ex.value)
+    assert "not all random point mass elements lists have same length." in str(ex.value)
 
 
 def test_elements_odd_length():
@@ -175,6 +175,21 @@ def test_elements_odd_length():
     with pytest.raises(ValueError) as ex:
         ST_Rotor(shaft_elm, disks, bearings)
     assert "not all the random elements lists have the same length." in str(ex.value)
+
+
+def test_no_random_elements():
+    shaft_elem = [ShaftElement(0.25, 0, 0.05, material=steel) for _ in range(6)]
+    disk = DiskElement.from_geometry(
+        n=2, material=steel, width=0.07, i_d=0.05, o_d=0.28
+    )
+    bearings = [
+        BearingElement(n=0, kxx=1e6, cxx=0),
+        BearingElement(n=6, kxx=1e6, cxx=0),
+    ]
+
+    with pytest.raises(ValueError) as ex:
+        ST_Rotor(shaft_elem, [disk], bearings)
+    assert "at least one random element is required." in str(ex.value)
 
 
 def test_getter_and_setter_error_messages():

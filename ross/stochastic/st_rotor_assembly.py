@@ -106,76 +106,40 @@ class ST_Rotor(object):
         if point_mass_elements is None:
             point_mass_elements = []
 
-        # checking for random elements and matching sizes
+        groups = [
+            ("shaft_elements", shaft_elements, ST_ShaftElement),
+            ("disk_elements", disk_elements, ST_DiskElement),
+            ("bearing_elements", bearing_elements, ST_BearingElement),
+            ("point_mass_elements", point_mass_elements, ST_PointMass),
+        ]
+
         is_random = []
         len_list = []
+        for name, elements, st_class in groups:
+            random_elements = [elm for elm in elements if isinstance(elm, st_class)]
+            if not random_elements:
+                continue
 
-        if any(isinstance(elm, ST_ShaftElement) for elm in shaft_elements):
-            is_random.append("shaft_elements")
-
-            it = iter(
-                [elm for elm in shaft_elements if isinstance(elm, ST_ShaftElement)]
-            )
-            len_sh = len(list(next(iter(it))))
-            if not all(len(list(l)) == len_sh for l in it):
+            sizes = {len(list(elm)) for elm in random_elements}
+            if len(sizes) > 1:
                 raise ValueError(
-                    "not all random shaft elements lists have same length."
+                    f"not all random {name.replace('_', ' ')} lists have same length."
                 )
-            len_list.append(len_sh)
+            is_random.append(name)
+            len_list.append(sizes.pop())
 
-        if any(isinstance(elm, ST_DiskElement) for elm in disk_elements):
-            is_random.append("disk_elements")
-
-            it = iter([elm for elm in disk_elements if isinstance(elm, ST_DiskElement)])
-            len_dk = len(list(next(iter(it))))
-            if not all(len(list(l)) == len_dk for l in it):
-                raise ValueError("not all random disk elements lists have same length.")
-            len_list.append(len_dk)
-
-        if any(isinstance(elm, ST_BearingElement) for elm in bearing_elements):
-            is_random.append("bearing_elements")
-
-            it = iter(
-                [elm for elm in bearing_elements if isinstance(elm, ST_BearingElement)]
-            )
-            len_brg = len(list(next(iter(it))))
-            if not all(len(list(l)) == len_brg for l in it):
-                raise ValueError(
-                    "not all random bearing elements lists have same length."
-                )
-            len_list.append(len_brg)
-
-        if any(isinstance(elm, ST_PointMass) for elm in point_mass_elements):
-            is_random.append("point_mass_elements")
-
-            it = iter(
-                [elm for elm in point_mass_elements if isinstance(elm, ST_PointMass)]
-            )
-            len_pm = len(list(next(iter(it))))
-            if not all(len(list(l)) == len_pm for l in it):
-                raise ValueError("not all random point mass lists have same length.")
-            len_list.append(len_pm)
+        if not len_list:
+            raise ValueError("at least one random element is required.")
 
         if len_list.count(len_list[0]) == len(len_list):
             RV_size = len_list[0]
         else:
             raise ValueError("not all the random elements lists have the same length.")
 
-        for i, elm in enumerate(shaft_elements):
-            if isinstance(elm, ST_ShaftElement):
-                shaft_elements[i] = list(iter(elm))
-
-        for i, elm in enumerate(disk_elements):
-            if isinstance(elm, ST_DiskElement):
-                disk_elements[i] = list(iter(elm))
-
-        for i, elm in enumerate(bearing_elements):
-            if isinstance(elm, ST_BearingElement):
-                bearing_elements[i] = list(iter(elm))
-
-        for i, elm in enumerate(point_mass_elements):
-            if isinstance(elm, ST_PointMass):
-                point_mass_elements[i] = list(iter(elm))
+        for _, elements, st_class in groups:
+            for i, elm in enumerate(elements):
+                if isinstance(elm, st_class):
+                    elements[i] = list(iter(elm))
 
         attribute_dict = dict(
             shaft_elements=shaft_elements,
