@@ -649,18 +649,12 @@ class ST_Rotor(object):
             Node where the unbalance is applied.
         unbalance_magnitude : list, float, pint.Quantity
             Unbalance magnitude (kg.m).
-            If node is int, input a list to make make it random.
-            If node is list, input a list of lists to make it random.
-            If there're multiple unbalances and not all of the magnitudes are supposed
-            to be stochastic, input a list with repeated values to the unbalance
-            magnitude considered deterministic.
+            If node is int, input a list with one value per random rotor to make it
+            random.
+            If node is list, input a list per node, shape (n_nodes, n_samples). To
+            keep a node deterministic, repeat its value in every sample.
         unbalance_phase : list, float, pint.Quantity
-            Unbalance phase (rad).
-            If node is int, input a list to make make it random.
-            If node is list, input a list of lists to make it random.
-            If there're multiple unbalances and not all of the phases are supposed
-            to be stochastic, input a list with repeated values to the unbalance phase
-            considered deterministic.
+            Unbalance phase (rad). Follows the same layout as unbalance_magnitude.
         frequency_range : list, float, optional
             Array with the desired range of frequencies.
             Default is 0 to 1.5 x highest damped natural frequency.
@@ -721,47 +715,42 @@ class ST_Rotor(object):
         RV_size = self.RV_size
         freq_size = len(frequency_range)
         ndof = self.ndof
-        args_dict = dict(
-            node=node,
-            unbalance_magnitude=unbalance_magnitude,
-            unbalance_phase=unbalance_phase,
-            frequency_range=frequency_range,
-            modes=modes,
-        )
 
         forced_resp = np.zeros((RV_size, ndof, freq_size), dtype=complex)
         velc_resp = np.zeros((RV_size, ndof, freq_size), dtype=complex)
         accl_resp = np.zeros((RV_size, ndof, freq_size), dtype=complex)
-        is_random = []
 
-        if (isinstance(node, int) and isinstance(unbalance_magnitude, Iterable)) or (
-            isinstance(node, Iterable) and isinstance(unbalance_magnitude[0], Iterable)
-        ):
-            is_random.append("unbalance_magnitude")
-
-        if (isinstance(node, int) and isinstance(unbalance_phase, Iterable)) or (
-            isinstance(node, Iterable) and isinstance(unbalance_phase[0], Iterable)
-        ):
-            is_random.append("unbalance_phase")
-
-        # Monte Carlo - results storage
-        if len(is_random):
-            i = 0
-            unbalance_args = self._random_var(is_random, args_dict)
-            for rotor, args in zip(iter(self), unbalance_args, strict=True):
-                results = rotor.run_unbalance_response(*args)
-                forced_resp[i] = results.forced_resp
-                velc_resp[i] = results.velc_resp
-                accl_resp[i] = results.accl_resp
-                i += 1
-        else:
-            for i, rotor in enumerate(iter(self)):
-                results = rotor.run_unbalance_response(
-                    node, unbalance_magnitude, unbalance_phase, frequency_range, modes
+        node_is_list = isinstance(node, Iterable)
+        unbalance = {
+            "unbalance_magnitude": unbalance_magnitude,
+            "unbalance_phase": unbalance_phase,
+        }
+        for name, value in unbalance.items():
+            entries = value if node_is_list else [value]
+            if any(
+                isinstance(entry, Iterable) and len(entry) != RV_size
+                for entry in entries
+            ):
+                raise ValueError(
+                    f"{name} must have one value per random rotor ({RV_size})."
                 )
-                forced_resp[i] = results.forced_resp
-                velc_resp[i] = results.velc_resp
-                accl_resp[i] = results.accl_resp
+
+        def sample(value, i):
+            if node_is_list:
+                return [v[i] if isinstance(v, Iterable) else v for v in value]
+            return value[i] if isinstance(value, Iterable) else value
+
+        for i, rotor in enumerate(iter(self)):
+            results = rotor.run_unbalance_response(
+                node,
+                sample(unbalance_magnitude, i),
+                sample(unbalance_phase, i),
+                frequency_range,
+                modes,
+            )
+            forced_resp[i] = results.forced_resp
+            velc_resp[i] = results.velc_resp
+            accl_resp[i] = results.accl_resp
 
         results = ST_ForcedResponseResults(
             forced_resp=forced_resp,

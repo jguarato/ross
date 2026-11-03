@@ -434,6 +434,36 @@ def test_run_freq_response_reads_response_at_out_to_force_at_inp():
             )
 
 
+def test_run_unbalance_response_several_nodes(rotor1):
+    freq_range = np.linspace(0, 500, 6)
+    nodes = [2, 4]
+    magnitude = [[0.001, 0.002], [0.0015, 0.0015]]
+    phase = [[0.0, 0.0], [0.0, np.pi]]
+    results = rotor1.run_unbalance_response(nodes, magnitude, phase, freq_range)
+
+    for i, rotor in enumerate(rotor1):
+        expected = rotor.run_unbalance_response(
+            nodes,
+            [magnitude[0][i], magnitude[1][i]],
+            [phase[0][i], phase[1][i]],
+            freq_range,
+        )
+        assert_allclose(results.forced_resp[i], expected.forced_resp, rtol=1e-8)
+
+
+def test_run_unbalance_response_wrong_sample_size(rotor1):
+    with pytest.raises(ValueError) as ex:
+        rotor1.run_unbalance_response(
+            [2, 4],
+            [[0.001, 0.002, 0.003], [0.001, 0.002, 0.003]],
+            [0.0, 0.0],
+            np.linspace(0, 500, 6),
+        )
+    assert "unbalance_magnitude must have one value per random rotor (2)." in str(
+        ex.value
+    )
+
+
 def test_run_unbalance_response(rotor1):
     freq_range = np.linspace(0, 500, 21)
     n = 3
