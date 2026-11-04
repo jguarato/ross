@@ -4,6 +4,8 @@ Tests for:
     st_rotor_assembly.py
 """
 
+import inspect
+
 import numpy as np
 import pytest
 from numpy.linalg import norm
@@ -644,3 +646,56 @@ def test_time_response(rotor1):
     dofs_4, dofs_6 = get_dofs(rotor1.ndof)
     assert results.yout.shape == (2, 5, 7 * rotor1.number_dof)
     assert_allclose(results.yout[:, :, dofs_4[:8]], yout, atol=1e-8)
+
+
+def run_campbell_results(rotor):
+    return rotor.run_campbell(np.linspace(0, 500, 5), frequencies=4)
+
+
+def run_freq_response_results(rotor):
+    return rotor.run_freq_response(9, 9, np.linspace(0, 500, 11))
+
+
+def run_time_response_results(rotor):
+    t = np.linspace(0, 1, 11)
+    F = np.zeros((t.size, rotor.ndof))
+    F[:, rotor.number_dof * 3] = 10 * np.cos(2 * t)
+    return rotor.run_time_response(100.0, F, t)
+
+
+def run_unbalance_response_results(rotor):
+    return rotor.run_unbalance_response(3, [0.001, 0.002], 0.0, np.linspace(0, 500, 11))
+
+
+@pytest.mark.parametrize(
+    "run_results",
+    [
+        run_campbell_results,
+        run_freq_response_results,
+        run_time_response_results,
+        run_unbalance_response_results,
+    ],
+)
+@pytest.mark.parametrize("extension", [".toml", ".json"])
+def test_st_results_save_load_roundtrip(rotor1, tmp_path, run_results, extension):
+    results = run_results(rotor1)
+    file = tmp_path / f"results{extension}"
+
+    results.save(file)
+    loaded = type(results).load(file)
+
+    assert type(loaded) is type(results)
+    for name in inspect.signature(type(results).__init__).parameters:
+        if name == "self":
+            continue
+        expected = getattr(results, name)
+        actual = getattr(loaded, name)
+        if (
+            isinstance(expected, np.ndarray | list)
+            and np.asarray(expected).dtype.kind in "iufc"
+        ):
+            assert_allclose(actual, expected, rtol=1e-10, atol=1e-300)
+        elif isinstance(expected, np.ndarray | list):
+            assert np.array_equal(np.asarray(actual), np.asarray(expected))
+        else:
+            assert actual == expected

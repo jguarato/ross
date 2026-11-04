@@ -4,10 +4,6 @@ This module returns graphs for each type of analyses in st_rotor_assembly.py.
 """
 
 import copy
-import inspect
-from abc import ABC
-from collections.abc import Iterable
-from pathlib import Path
 
 import numpy as np
 from plotly import express as px
@@ -16,6 +12,7 @@ from plotly.subplots import make_subplots
 
 from ross.plotly_theme import tableau_colors
 from ross.probe import check_probes
+from ross.results import Results
 from ross.units import Q_
 
 colors1 = px.colors.qualitative.Dark24
@@ -26,132 +23,10 @@ __all__ = [
     "ST_FrequencyResponseResults",
     "ST_TimeResponseResults",
     "ST_ForcedResponseResults",
-    "ST_Results",
 ]
 
 
-class ST_Results(ABC):
-    """Results class.
-
-    This class is a general abstract class to be implemented in other classes
-    for post-processing results, in order to add saving and loading data options.
-    """
-
-    def save(self, file):
-        """Save results in a .toml or .json file.
-
-        This function will save the simulation results to a .toml or .json file.
-        The file will have all the argument's names and values that are needed to
-        reinstantiate the class.
-
-        Parameters
-        ----------
-        file : str, pathlib.Path
-            The name of the file the results will be saved in.
-            The format is determined by the file extension (.toml or .json).
-
-        Examples
-        --------
-        >>> # Example running a stochastic unbalance response
-        >>> from tempfile import tempdir
-        >>> from pathlib import Path
-        >>> import ross.stochastic as srs
-
-        >>> # Running an example
-        >>> rotors = srs.st_rotor_example()
-        >>> freq_range = np.linspace(0, 500, 31)
-        >>> n = 3
-        >>> m = np.random.uniform(0.001, 0.002, 10)
-        >>> p = 0.0
-        >>> results = rotors.run_unbalance_response(n, m, p, freq_range)
-
-        >>> # create path for a temporary file
-        >>> file = Path(tempdir) / 'results.toml'
-        >>> results.save(file)
-        """
-        from ross.utils import load_data, dump_data_numpy
-
-        # get __init__ arguments
-        signature = inspect.signature(self.__init__)
-        args_list = list(signature.parameters)
-        args = {arg: getattr(self, arg) for arg in args_list}
-        try:
-            data = load_data(file)
-        except FileNotFoundError:
-            data = {}
-
-        data[f"{self.__class__.__name__}"] = args
-        dump_data_numpy(data, file)
-
-    @classmethod
-    def read_toml_data(cls, data):
-        """Read and parse data stored in a .toml file.
-
-        The data passed to this method needs to be according to the
-        format saved in the .toml file by the .save() method.
-
-        Parameters
-        ----------
-        data : dict
-            Dictionary obtained from toml.load().
-
-        Returns
-        -------
-        The result object.
-        """
-        return cls(**data)
-
-    @classmethod
-    def load(cls, file):
-        """Load results from a .toml or .json file.
-
-        This function will load the simulation results from a .toml or .json file.
-        The file must have all the argument's names and values that are needed to
-        reinstantiate the class.
-
-        Parameters
-        ----------
-        file : str, pathlib.Path
-            The name of the file the results will be loaded from.
-
-        Examples
-        --------
-        >>> # Example running a stochastic unbalance response
-        >>> from tempfile import tempdir
-        >>> from pathlib import Path
-        >>> import ross.stochastic as srs
-
-        >>> # Running an example
-        >>> rotors = srs.st_rotor_example()
-        >>> freq_range = np.linspace(0, 500, 31)
-        >>> n = 3
-        >>> m = np.random.uniform(0.001, 0.002, 10)
-        >>> p = 0.0
-        >>> results = rotors.run_unbalance_response(n, m, p, freq_range)
-
-        >>> # create path for a temporary file
-        >>> file = Path(tempdir) / 'results.toml'
-        >>> results.save(file)
-
-        >>> # Loading file
-        >>> results2 = srs.ST_ForcedResponseResults.load(file)
-        >>> results2.forced_resp.all() == results.forced_resp.all()
-        True
-        """
-        from ross.utils import load_data
-
-        data = load_data(file)
-        # extract single dictionary in the data
-        data = list(data.values())[0]
-        for key, value in data.items():
-            if isinstance(value, Iterable):
-                data[key] = np.array(value)
-                if data[key].dtype == np.dtype("<U49"):
-                    data[key] = np.array(value).astype(np.complex128)
-        return cls.read_toml_data(data)
-
-
-class ST_CampbellResults(ST_Results):
+class ST_CampbellResults(Results):
     """Store stochastic results and provide plots for Campbell Diagram.
 
     It's possible to visualize multiple harmonics in a single plot to check
@@ -467,7 +342,7 @@ class ST_CampbellResults(ST_Results):
         return fig
 
 
-class ST_FrequencyResponseResults(ST_Results):
+class ST_FrequencyResponseResults(Results):
     """Store stochastic results and provide plots for Frequency Response.
 
     Parameters
@@ -1046,7 +921,7 @@ class ST_FrequencyResponseResults(ST_Results):
         return fig
 
 
-class ST_TimeResponseResults(ST_Results):
+class ST_TimeResponseResults(Results):
     """Store stochastic results and provide plots for Time Response and Orbit Response.
 
     Parameters
@@ -1493,7 +1368,7 @@ class ST_TimeResponseResults(ST_Results):
         return fig
 
 
-class ST_ForcedResponseResults(ST_Results):
+class ST_ForcedResponseResults(Results):
     """Store stochastic results and provide plots for Forced Response.
 
     Parameters

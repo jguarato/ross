@@ -27,7 +27,7 @@ class NumpyEncoder(json.JSONEncoder):
             return int(obj)
         if isinstance(obj, np.floating):
             return float(obj)
-        if isinstance(obj, np.complexfloating):
+        if isinstance(obj, complex | np.complexfloating):
             return {"real": float(obj.real), "imag": float(obj.imag)}
         if isinstance(obj, np.bool_):
             return bool(obj)
@@ -97,7 +97,42 @@ def dump_data_numpy(data, file):
             f.write(json_str)
     else:
         with open(file, "w") as f:
-            toml.dump(data, f, encoder=toml.TomlNumpyEncoder())
+            toml.dump(_string_arrays_to_lists(data), f, encoder=toml.TomlNumpyEncoder())
+
+
+def _string_arrays_to_lists(obj):
+    """Return obj with numpy string arrays as lists, which the TOML encoder keeps whole."""
+    if isinstance(obj, dict):
+        return {k: _string_arrays_to_lists(v) for k, v in obj.items()}
+    if isinstance(obj, list | tuple):
+        return type(obj)(_string_arrays_to_lists(i) for i in obj)
+    if isinstance(obj, np.ndarray) and obj.dtype.kind in "US":
+        return obj.tolist()
+    return obj
+
+
+def decode_complex(obj):
+    """Return obj with every {"real": a, "imag": b} dict replaced by complex(a, b).
+
+    This reverses the encoding of complex numbers that NumpyEncoder writes to JSON.
+
+    Parameters
+    ----------
+    obj : dict, list, object
+        Data read from a .json file.
+
+    Returns
+    -------
+    obj
+        The same structure with complex numbers restored.
+    """
+    if isinstance(obj, dict):
+        if obj.keys() == {"real", "imag"}:
+            return complex(obj["real"], obj["imag"])
+        return {k: decode_complex(v) for k, v in obj.items()}
+    if isinstance(obj, list):
+        return [decode_complex(i) for i in obj]
+    return obj
 
 
 def cast_numpy_types(obj):
