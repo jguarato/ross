@@ -1,8 +1,8 @@
-"""Tests for the MotorElement class.
+"""Tests for the ElectricMotor class.
 
 Tests are based on the operating scenarios described in
 "Testes dos modelos do motor e conversor - ROSS.docx", covering the three
-electrical sources supported by ``MotorElement``:
+electrical sources supported by ``ElectricMotor``:
 
 - ``SourceAC`` (ideal AC source), driven through ``.run_direct_on_line()``;
 - ``InverterVF`` (open-loop scalar V/f control), driven through
@@ -32,7 +32,7 @@ from numpy.testing import assert_allclose
 from copy import deepcopy
 
 from ross.bearing_seal_element import BearingElement
-from ross.motors.motor_element import MotorElement, motor_example
+from ross.motors.motor_element import ElectricMotor, motor_example
 from ross.motors.results import MotorResponseResults
 from ross.rotor_assembly import Rotor, rotor_example
 from ross.units import Q_
@@ -52,7 +52,7 @@ def motor_high_inertia():
     simulation window, so the electrical quantities converge to the
     blocked-rotor (starting) operating point.
     """
-    return MotorElement(
+    return ElectricMotor(
         n=0,
         tag="motor_high_inertia",
         power_rated=Q_(1.5, "cv"),

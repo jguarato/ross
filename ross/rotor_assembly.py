@@ -48,7 +48,7 @@ from ross.materials import Material, steel
 from ross.model_reduction import ModelReduction
 from ross.plotly_theme import axes_indicator_2d, color_shades
 from ross.point_mass import PointMass
-from ross.motors.motor_element import MotorElement
+from ross.motors.motor_element import ElectricMotor
 from ross.probe import Probe
 from ross.results import (
     CampbellResults,
@@ -1534,7 +1534,7 @@ class Rotor(object):
                 bearing_elements.append(el)
             elif isinstance(el, PointMass):
                 point_mass_elements.append(el)
-            elif isinstance(el, MotorElement):
+            elif isinstance(el, ElectricMotor):
                 motor_element = el
             else:
                 raise ValueError(f"{el} is not a valid element.")
@@ -5966,7 +5966,7 @@ class Rotor(object):
                 bearing_elements.append(el)
             elif isinstance(el, PointMass):
                 point_mass_elements.append(el)
-            elif isinstance(el, MotorElement):
+            elif isinstance(el, ElectricMotor):
                 motor_element = el
 
         return cls(

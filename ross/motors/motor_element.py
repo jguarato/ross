@@ -1,6 +1,6 @@
 """Electric Motor Element module.
 
-This module defines the MotorElement class which represents a 3-phase Induction Electric Motor
+This module defines the ElectricMotor class which represents a 3-phase Induction Electric Motor
 simulated using a 4th-order Runge-Kutta method, considering magnetic fluxes and currents.
 """
 
@@ -25,10 +25,10 @@ from .utils import (
     rk4_step,
 )
 
-__all__ = ["MotorElement", "motor_example"]
+__all__ = ["ElectricMotor", "motor_example"]
 
 
-class MotorElement(Element):
+class ElectricMotor(Element):
     """Create a 3-phase induction motor element for rotordynamic analysis.
 
     This class represents a Three-Phase Induction Motor (TPIM) using a synchronous
@@ -112,10 +112,10 @@ class MotorElement(Element):
 
     Examples
     --------
-    >>> from ross import MotorElement
+    >>> from ross import ElectricMotor
     >>> from ross.units import Q_
 
-    >>> motor = MotorElement(
+    >>> motor = ElectricMotor(
     ...     n=0,
     ...     tag=None,
     ...     power_rated=Q_(1.5, "cv"),
@@ -250,7 +250,7 @@ class MotorElement(Element):
         --------
         >>> motor = motor_example()
         >>> motor # doctest: +ELLIPSIS
-        MotorElement(n=0, tag=None...
+        ElectricMotor(n=0, tag=None...
         """
         return (
             f"{self.__class__.__name__}"
@@ -414,7 +414,7 @@ class MotorElement(Element):
         Returns
         -------
         M : np.ndarray
-            Zero 6x6 matrix. ``MotorElement`` does not contribute to the rotor
+            Zero 6x6 matrix. ``ElectricMotor`` does not contribute to the rotor
             structural mass matrix.
         """
         return np.zeros((6, 6))
@@ -425,7 +425,7 @@ class MotorElement(Element):
         Returns
         -------
         K : np.ndarray
-            Zero 6x6 matrix. ``MotorElement`` does not contribute to the rotor
+            Zero 6x6 matrix. ``ElectricMotor`` does not contribute to the rotor
             structural stiffness matrix.
         """
         return np.zeros((6, 6))
@@ -436,7 +436,7 @@ class MotorElement(Element):
         Returns
         -------
         C : np.ndarray
-            Zero 6x6 matrix. ``MotorElement`` does not contribute to the rotor
+            Zero 6x6 matrix. ``ElectricMotor`` does not contribute to the rotor
             structural damping matrix.
         """
         return np.zeros((6, 6))
@@ -447,7 +447,7 @@ class MotorElement(Element):
         Returns
         -------
         G : np.ndarray
-            Zero 6x6 matrix. ``MotorElement`` does not contribute to the rotor
+            Zero 6x6 matrix. ``ElectricMotor`` does not contribute to the rotor
             gyroscopic matrix.
         """
         return np.zeros((6, 6))
@@ -1379,6 +1379,9 @@ def _run_motor_time_closed_loop(
     )
 
 
+MotorElement = ElectricMotor
+
+
 def motor_example():
     """Create an example of motor element.
 
@@ -1387,7 +1390,7 @@ def motor_example():
 
     Returns
     -------
-    motor : ross.MotorElement
+    motor : ross.ElectricMotor
         An instance of a motor object.
 
     Examples
@@ -1397,7 +1400,7 @@ def motor_example():
     376.991...
     """
 
-    return MotorElement(
+    return ElectricMotor(
         n=0,
         tag=None,
         power_rated=Q_(1.5, "cv"),

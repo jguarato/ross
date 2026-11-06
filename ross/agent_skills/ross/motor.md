@@ -2,7 +2,7 @@
 
 Source: `docs/user_guide/tutorial_motor.ipynb`
 
-`MotorElement` models a three-phase induction motor (TPIM) in a rotor-flux-oriented synchronous frame. It is not a structural element: it adds no mass, stiffness, damping or gyroscopic terms to the rotor matrices. Its node `n` is where the motor torque enters the torsional DOF (`theta`) in `Rotor.run_with_motor`.
+`ElectricMotor` models a three-phase induction motor (TPIM) in a rotor-flux-oriented synchronous frame. It is not a structural element: it adds no mass, stiffness, damping or gyroscopic terms to the rotor matrices. Its node `n` is where the motor torque enters the torsional DOF (`theta`) in `Rotor.run_with_motor`.
 
 ## Motor model
 
@@ -11,7 +11,7 @@ import numpy as np
 import ross as rs
 from ross.units import Q_
 
-motor = rs.MotorElement(
+motor = rs.ElectricMotor(
     n=0,
     tag="TPIM",
     power_rated=Q_(1.5, "hp"),
@@ -33,7 +33,7 @@ motor = rs.motor_example()  # the same 1.5 hp, 127 V / 60 Hz, 4-pole motor at no
 motor.T_rated  # rated torque (N·m), the reference for load_torque_ratio
 ```
 
-- The direct-on-line supply voltage and frequency are the `voltage_net` and `frequency_net` arguments of `run_direct_on_line`, which default to the rated values. The `MotorElement` arguments of the same name do not reach the supply: `voltage_net` only sets the network short-circuit impedance and `frequency_net` is not used. `run_with_motor` does not pass a supply voltage or frequency, so its `"DOL"` mode always runs at the rated values. The inverters set the voltage and frequency themselves.
+- The direct-on-line supply voltage and frequency are the `voltage_net` and `frequency_net` arguments of `run_direct_on_line`, which default to the rated values. The `ElectricMotor` arguments of the same name do not reach the supply: `voltage_net` only sets the network short-circuit impedance and `frequency_net` is not used. `run_with_motor` does not pass a supply voltage or frequency, so its `"DOL"` mode always runs at the rated values. The inverters set the voltage and frequency themselves.
 - Speeds and frequencies are rad/s internally; pass `Q_(..., "RPM")` or `Q_(..., "Hz")` to convert.
 
 ## Motor-only analyses
