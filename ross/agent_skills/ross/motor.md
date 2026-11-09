@@ -150,7 +150,7 @@ rotor = rs.Rotor(
     base_rotor.shaft_elements,
     base_rotor.disk_elements,
     bearings,
-    motor_element=motor,  # pass by keyword
+    motor=motor,  # pass by keyword
 )
 # or: rotor = rs.rotor_example().add_elements([rs.motor_example()])
 fig = rotor.plot_rotor()  # the motor is drawn at its node
@@ -172,7 +172,7 @@ response = rotor.run_with_motor(
 - `time_step`, `time_ramp` and `frequency_ref` are the inverter arguments, used only with `"VFD_VF"` and `"VFD_FOC"`. The switching frequency is fixed at 5 kHz.
 - `steady_state=True` (default) integrates only the last third of the interval after `load_torque_entrance_time`: `response.t` starts there, not at `t[0]`. The motor start-up and load transient are skipped, but the rotor starts from rest at the start of that window, so the window begins with a new lateral transient. In the run above the amplitudes at the end of the window are still 20-40 % above the steady value. Use `steady_state=False` (or a longer `t`) when amplitudes matter.
 - `F` (shape `(len(t), rotor.ndof)`) adds external forces; extra keyword arguments go to the Newmark integrator (`gamma`, `beta`, `tol`, ...) and `Rotor.integrate_system`.
-- A rotor holds one motor (`rotor.motor_element`); `run_with_motor` raises `ValueError` if there is none.
+- A rotor holds one motor (`rotor.motor`); `run_with_motor` raises `ValueError` if there is none.
 - Use a time step suited to the rotor integration (0.1 ms here); finer steps make the Newmark run slow.
 
 ### Results

@@ -602,7 +602,7 @@ def rotor_with_motor(motor):
         base_rotor.shaft_elements,
         base_rotor.disk_elements,
         bearings,
-        motor_element=deepcopy(motor),
+        motor=deepcopy(motor),
     )
 
 

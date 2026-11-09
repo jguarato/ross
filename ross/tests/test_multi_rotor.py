@@ -187,9 +187,9 @@ def test_add_elements_motor(multi_rotor):
 
     new_rotor = multi_rotor.add_elements([motor])
 
-    assert multi_rotor.motor_element is None
-    assert new_rotor.motor_element == motor
-    assert new_rotor.rotors["driving"].motor_element == motor
+    assert multi_rotor.motor is None
+    assert new_rotor.motor == motor
+    assert new_rotor.rotors["driving"].motor == motor
 
 
 def test_new_parameters_keep_3_0_positional_calls():

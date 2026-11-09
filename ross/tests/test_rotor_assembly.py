@@ -444,8 +444,8 @@ def test_add_elements_valid(rotor3):
     assert sorted(d.n for d in new_rotor.disk_elements) == [2, 4, 5]
     assert new_rotor.point_mass_elements[0].n == 3
     assert_allclose(new_rotor.m_disks, rotor3.m_disks + 32)
-    assert rotor3.motor_element is None
-    assert new_rotor.motor_element == motor
+    assert rotor3.motor is None
+    assert new_rotor.motor == motor
 
 
 def test_add_nodes_simple(rotor3):
@@ -3758,14 +3758,14 @@ def test_refine_add_nodes_and_refine_mesh_keep_the_motor():
         rotor.shaft_elements,
         rotor.disk_elements,
         rotor.bearing_elements,
-        motor_element=motor,
+        motor=motor,
     )
     for refined in (
         rotor.refine(2),
         rotor.refine_mesh(parts=2),
         rotor.add_nodes(_equal_cuts(rotor, 2)),
     ):
-        new_motor = refined.motor_element
+        new_motor = refined.motor
         assert new_motor is not None
         assert new_motor.n == new_motor.n_l == new_motor.n_r == 4
         assert_allclose(refined.nodes_pos[new_motor.n], rotor.nodes_pos[2])

@@ -236,8 +236,8 @@ class Rotor(object):
         List with the bearing elements
     point_mass_elements: list
         List with the point mass elements
-    motor_element: object
-        Motor element object
+    motor: ElectricMotor, optional
+        Electric motor of the rotor.
     modal_damping_ratio: list, optional
         List of modal damping ratio(s) for the first modes
     default_damping_ratio: float, optional
@@ -303,7 +303,7 @@ class Rotor(object):
         disk_elements=None,
         bearing_elements=None,
         point_mass_elements=None,
-        motor_element=None,
+        motor=None,
         min_w=None,
         max_w=None,
         rated_w=None,
@@ -368,8 +368,8 @@ class Rotor(object):
 
         elm_dict = {}
         elements = disk_elements + bearing_elements + point_mass_elements
-        if motor_element is not None:
-            elements.append(motor_element)
+        if motor is not None:
+            elements.append(motor)
 
         for elm in elements:
             class_name = elm.__class__.__name__
@@ -386,7 +386,7 @@ class Rotor(object):
         self.bearing_elements = sorted(bearing_elements, key=lambda el: el.n)
         self.disk_elements = sorted(disk_elements, key=lambda el: el.n)
         self.point_mass_elements = sorted(point_mass_elements, key=lambda el: el.n)
-        self.motor_element = motor_element
+        self.motor = motor
 
         self.elements = [
             el
@@ -402,8 +402,8 @@ class Rotor(object):
 
         # check if tags are unique
         tags_list = [el.tag for el in self.elements]
-        if self.motor_element is not None:
-            tags_list.append(self.motor_element.tag)
+        if self.motor is not None:
+            tags_list.append(self.motor.tag)
         if len(tags_list) != len(set(tags_list)):
             raise ValueError("Tags should be unique.")
 
@@ -453,8 +453,8 @@ class Rotor(object):
         )
         df_point_mass = pd.DataFrame([el.summary() for el in self.point_mass_elements])
         df_motor = (
-            pd.DataFrame([self.motor_element.summary()])
-            if self.motor_element is not None
+            pd.DataFrame([self.motor.summary()])
+            if self.motor is not None
             else pd.DataFrame()
         )
 
@@ -628,8 +628,8 @@ class Rotor(object):
                 elm.dof_global_index
             )
 
-        if self.motor_element is not None:
-            motor = self.motor_element
+        if self.motor is not None:
+            motor = self.motor
             dof_names = ("x", "y", "z", "alpha", "beta", "theta")
             motor.dof_global_index = {
                 f"{name}_{motor.n}": int(self.number_dof * motor.n + i)
@@ -651,8 +651,8 @@ class Rotor(object):
             df.loc[df.tag == elm.tag, "y_pos"] = y_pos
 
         # define positions for motor
-        if self.motor_element is not None:
-            elm = self.motor_element
+        if self.motor is not None:
+            elm = self.motor
             i = self.nodes.index(elm.n)
             z_pos = self.nodes_pos[i]
             df.loc[df.tag == elm.tag, "nodes_pos_l"] = z_pos
@@ -816,7 +816,7 @@ class Rotor(object):
         disk_elements = []
         bearing_elements = []
         point_mass_elements = []
-        motor_element = None
+        motor = None
 
         node_offset = 0
 
@@ -831,8 +831,8 @@ class Rotor(object):
         for i, rotor in enumerate(rotor_list):
             rotor = deepcopy(rotor)
 
-            motor = [] if rotor.motor_element is None else [rotor.motor_element]
-            for el in [*rotor.elements, *motor]:
+            motor_list = [] if rotor.motor is None else [rotor.motor]
+            for el in [*rotor.elements, *motor_list]:
                 if el.n in rotor.nodes:
                     el.n += node_offset
                 elif el.n in rotor.link_nodes:
@@ -851,8 +851,8 @@ class Rotor(object):
             bearing_elements.extend(rotor.bearing_elements)
             point_mass_elements.extend(rotor.point_mass_elements)
 
-            if rotor.motor_element is not None:
-                motor_element = rotor.motor_element
+            if rotor.motor is not None:
+                motor = rotor.motor
 
             # Update offset for the next rotor
             node_offset += max(rotor.nodes)
@@ -865,7 +865,7 @@ class Rotor(object):
             disk_elements=disk_elements,
             bearing_elements=bearing_elements,
             point_mass_elements=point_mass_elements,
-            motor_element=motor_element,
+            motor=motor,
             **parameters,
         )
 
@@ -1118,7 +1118,7 @@ class Rotor(object):
         """
         if (
             self.elements == other.elements
-            and self.motor_element == other.motor_element
+            and self.motor == other.motor
             and self.parameters == other.parameters
         ):
             return True
@@ -1143,7 +1143,7 @@ class Rotor(object):
             "disk_elements",
             "bearing_elements",
             "point_mass_elements",
-            "motor_element",
+            "motor",
             "shafts",
         }
         sig = inspect.signature(self.__class__.__init__)
@@ -1277,19 +1277,24 @@ class Rotor(object):
         -------
         elements : dict
             Copies of ``disk_elements``, ``bearing_elements``,
-            ``point_mass_elements`` and ``motor_element``, keyed by those
+            ``point_mass_elements`` and ``motor``, keyed by those
             names, with ``n``, ``n_l``, ``n_r``, ``n_link`` and ``sensor_node``
             renumbered.
         """
         disk_elements = deepcopy(self.disk_elements)
         bearing_elements = deepcopy(self.bearing_elements)
         point_mass_elements = deepcopy(self.point_mass_elements)
-        motor_element = deepcopy(self.motor_element)
-        motor = [] if motor_element is None else [motor_element]
+        motor = deepcopy(self.motor)
+        motor_list = [] if motor is None else [motor]
 
-        for elm in [*disk_elements, *bearing_elements, *point_mass_elements, *motor]:
+        for elm in [
+            *disk_elements,
+            *bearing_elements,
+            *point_mass_elements,
+            *motor_list,
+        ]:
             elm.n = new_node(elm.n)
-        for elm in [*disk_elements, *motor]:
+        for elm in [*disk_elements, *motor_list]:
             elm.n_l = elm.n_r = elm.n
         for elm in bearing_elements:
             if elm.n_link is not None:
@@ -1301,7 +1306,7 @@ class Rotor(object):
             "disk_elements": disk_elements,
             "bearing_elements": bearing_elements,
             "point_mass_elements": point_mass_elements,
-            "motor_element": motor_element,
+            "motor": motor,
         }
 
     def refine_mesh(self, max_ld=0.5, min_ld=0.1, parts=None):
@@ -1538,7 +1543,7 @@ class Rotor(object):
         disk_elements = deepcopy(self.disk_elements)
         bearing_elements = deepcopy(self.bearing_elements)
         point_mass_elements = deepcopy(self.point_mass_elements)
-        motor_element = deepcopy(self.motor_element)
+        motor = deepcopy(self.motor)
 
         for el in new_elements:
             if isinstance(el, ShaftElement):
@@ -1550,7 +1555,7 @@ class Rotor(object):
             elif isinstance(el, PointMass):
                 point_mass_elements.append(el)
             elif isinstance(el, ElectricMotor):
-                motor_element = el
+                motor = el
             else:
                 raise ValueError(f"{el} is not a valid element.")
 
@@ -1559,7 +1564,7 @@ class Rotor(object):
             disk_elements=disk_elements,
             bearing_elements=bearing_elements,
             point_mass_elements=point_mass_elements,
-            motor_element=motor_element,
+            motor=motor,
             **self._init_parameters(),
         )
 
@@ -4039,8 +4044,8 @@ class Rotor(object):
             fig = p_mass._patch(position, fig)
 
         # plot motor
-        if self.motor_element is not None:
-            motor = self.motor_element
+        if self.motor is not None:
+            motor = self.motor
             z_pos = (
                 Q_(self.df[self.df.tag == motor.tag]["nodes_pos_l"].values[0], "m")
                 .to(length_units)
@@ -5354,10 +5359,10 @@ class Rotor(object):
         >>> fig1 = results.plot_1d(probe=[Probe(n1, 0)])
         >>> fig2 = results.motor_results.plot_speed()
         """
-        if self.motor_element is None:
+        if self.motor is None:
             raise ValueError("No motor elements found in the rotor.")
 
-        motor = self.motor_element
+        motor = self.motor
 
         if load_torque_entrance_time is None:
             load_torque_entrance_time = t[len(t) // 2]
@@ -5865,8 +5870,8 @@ class Rotor(object):
         )
         for el in self.elements:
             el.save(file)
-        if self.motor_element is not None:
-            self.motor_element.save(file)
+        if self.motor is not None:
+            self.motor.save(file)
 
         warning_text = (
             "This file is auto-generated by ROSS. Do not edit values directly.\n"
@@ -5972,7 +5977,7 @@ class Rotor(object):
         disk_elements = []
         bearing_elements = []
         point_mass_elements = []
-        motor_element = None
+        motor = None
 
         for el in elements:
             if isinstance(el, ShaftElement):
@@ -5984,14 +5989,14 @@ class Rotor(object):
             elif isinstance(el, PointMass):
                 point_mass_elements.append(el)
             elif isinstance(el, ElectricMotor):
-                motor_element = el
+                motor = el
 
         return cls(
             shaft_elements=shaft_elements,
             disk_elements=disk_elements,
             bearing_elements=bearing_elements,
             point_mass_elements=point_mass_elements,
-            motor_element=motor_element,
+            motor=motor,
             **parameters,
         )
 
