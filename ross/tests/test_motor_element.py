@@ -21,7 +21,7 @@ Motor under test
 - Rated frequency: 60 Hz
 - Poles          : 4
 - Rs = 2.5 Ω, Rr = 1.8 Ω, Xs = Xr = 1.3 Ω, Xm = 43.08 Ω
-- Ip_motor = 0.0372 kg·m²
+- Ip = 0.0372 kg·m²
 """
 
 import sys
@@ -46,7 +46,7 @@ def motor():
 
 @pytest.fixture
 def motor_high_inertia():
-    """Return the motor with Ip_motor × 10 000 to simulate a locked rotor.
+    """Return the motor with Ip × 10 000 to simulate a locked rotor.
 
     With such a large inertia the mechanical speed barely changes during the
     simulation window, so the electrical quantities converge to the
@@ -65,7 +65,7 @@ def motor_high_inertia():
         stator_reactance=1.3,
         rotor_reactance=1.3,
         mutual_reactance=43.08,
-        Ip_motor=0.0372 * 10000,
+        Ip=0.0372 * 10000,
         viscosity_coeff=0.0,
         Ip_load=0.0,
         voltage_net=127,
@@ -104,7 +104,7 @@ def test_motor_example_parameters():
     assert_allclose(motor.stator_reactance, 1.3, rtol=1e-9)
     assert_allclose(motor.rotor_reactance, 1.3, rtol=1e-9)
     assert_allclose(motor.mutual_reactance, 43.08, rtol=1e-9)
-    assert_allclose(motor.Ip_motor, 0.0372, rtol=1e-9)
+    assert_allclose(motor.Ip, 0.0372, rtol=1e-9)
 
 
 def test_motor_example_equality():

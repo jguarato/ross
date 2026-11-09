@@ -54,7 +54,7 @@ class ElectricMotor:
         Rotor self-reactance at frequency [Ohm].
     mutual_reactance : float
         Mutual reactance at frequency [Ohm].
-    Ip_motor : float, pint.Quantity
+    Ip : float, pint.Quantity
         Polar Moment of inertia related to motor axis [kg.m²].
     frequency_rated : float, optional, pint.Quantity
         Rated frequency [rad/s].
@@ -128,7 +128,7 @@ class ElectricMotor:
     ...     stator_reactance=1.3,
     ...     rotor_reactance=1.3,
     ...     mutual_reactance=43.08,
-    ...     Ip_motor=0.0372,
+    ...     Ip=0.0372,
     ...     viscosity_coeff=0.0,
     ...     Ip_load=0.0,
     ...     voltage_net=127,
@@ -151,7 +151,7 @@ class ElectricMotor:
         stator_reactance,
         rotor_reactance,
         mutual_reactance,
-        Ip_motor,
+        Ip,
         frequency_rated=None,
         n_poles=4,
         viscosity_coeff=0.0,
@@ -176,7 +176,7 @@ class ElectricMotor:
         self.stator_reactance = float(stator_reactance)
         self.rotor_reactance = float(rotor_reactance)
         self.mutual_reactance = float(mutual_reactance)
-        self.Ip_motor = float(Ip_motor)
+        self.Ip = float(Ip)
         self.viscosity_coeff = float(viscosity_coeff)
         self.Ip_load = float(Ip_load)
 
@@ -265,7 +265,7 @@ class ElectricMotor:
             f"stator_reactance={self.stator_reactance:{0}.{5}}, "
             f"rotor_reactance={self.rotor_reactance:{0}.{5}}, "
             f"mutual_reactance={self.mutual_reactance:{0}.{5}}, "
-            f"Ip_motor={self.Ip_motor:{0}.{5}}, "
+            f"Ip={self.Ip:{0}.{5}}, "
             f"viscosity_coeff={self.viscosity_coeff:{0}.{5}}, "
             f"Ip_load={self.Ip_load:{0}.{5}}, "
             f"voltage_net={self.voltage_net:{0}.{5}}, "
@@ -313,7 +313,7 @@ class ElectricMotor:
             f"\nStator Reactance (Ohm):             {self.stator_reactance:{2}.{5}}"
             f"\nRotor Reactance (Ohm):              {self.rotor_reactance:{2}.{5}}"
             f"\nMutual Reactance (Ohm):             {self.mutual_reactance:{2}.{5}}"
-            f"\nMotor Inertia (kg.m²):              {self.Ip_motor:{2}.{5}}"
+            f"\nMotor Inertia (kg.m²):              {self.Ip:{2}.{5}}"
             f"\nViscosity Coefficient (Pa.s):       {self.viscosity_coeff:{2}.{5}}"
             f"\nLoad Inertia (kg.m²):               {self.Ip_load:{2}.{5}}"
             f"\n----- Power Supply Parameters (SCIP) -----"
@@ -416,7 +416,7 @@ class ElectricMotor:
             self.speed_rated,
             frequency_hz,
             self.n_poles,
-            self.Ip_motor,
+            self.Ip,
         ]
         hovertemplate = (
             f"Motor Node: {customdata[0]}<br>"
@@ -597,7 +597,7 @@ class ElectricMotor:
         Tl_full = self.T_rated * load_torque_ratio
 
         Rs = self.stator_resistance + self.short_circuit_resistance
-        Ip = self.Ip_motor + self.Ip_load
+        Ip = self.Ip + self.Ip_load
 
         is_closed_loop = isinstance(element, InverterFOC)
 
@@ -1034,7 +1034,7 @@ class ElectricMotor:
             stator_reactance=self.stator_reactance,
             rotor_reactance=self.rotor_reactance,
             mutual_reactance=self.mutual_reactance,
-            Ip_motor=self.Ip_motor,
+            Ip_motor=self.Ip,
             time_ramp=time_ramp,
             frequency_ref=float(frequency_ref or self.frequency_rated / 2),
         )
@@ -1359,7 +1359,7 @@ def motor_example():
         stator_reactance=1.3,
         rotor_reactance=1.3,
         mutual_reactance=43.08,
-        Ip_motor=0.0372,
+        Ip=0.0372,
         viscosity_coeff=0.0,
         Ip_load=0.0,
         voltage_net=127,

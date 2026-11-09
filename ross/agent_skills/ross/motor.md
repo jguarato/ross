@@ -24,7 +24,7 @@ motor = rs.ElectricMotor(
     stator_reactance=1.3,  # Ohm
     rotor_reactance=1.3,  # Ohm
     mutual_reactance=43.08,  # Ohm
-    Ip_motor=0.0372,  # kg·m²
+    Ip=0.0372,  # kg·m²
     Ip_load=0.0,  # kg·m²
     viscosity_coeff=0.0,
 )
