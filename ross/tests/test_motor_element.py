@@ -32,9 +32,12 @@ from numpy.testing import assert_allclose
 from copy import deepcopy
 
 from ross.bearing_seal_element import BearingElement
+from ross.disk_element import DiskElement
 from ross.motors.motor_element import ElectricMotor, motor_example
 from ross.motors.results import MotorResponseResults
+from ross.materials import steel
 from ross.rotor_assembly import Rotor, rotor_example
+from ross.shaft_element import ShaftElement
 from ross.units import Q_
 
 
@@ -599,12 +602,8 @@ def rotor_with_motor(motor):
         BearingElement(n=bearing.n, kxx=1e6, cxx=2e3)
         for bearing in base_rotor.bearing_elements
     ]
-    return Rotor(
-        base_rotor.shaft_elements,
-        base_rotor.disk_elements,
-        bearings,
-        motor=deepcopy(motor),
-    )
+    rotor = Rotor(base_rotor.shaft_elements, base_rotor.disk_elements, bearings)
+    return rotor.add_motor(deepcopy(motor))
 
 
 @pytest.fixture(scope="module", params=_DRIVE_MODES)
@@ -687,3 +686,63 @@ def test_run_with_motor_without_motor_element():
             drive_mode="DOL",
             load_torque_entrance_time=0.05,
         )
+
+
+_CIRCUIT = dict(
+    power_rated=1118.5,
+    voltage_rated=127,
+    speed_rated=179.07,
+    stator_resistance=2.5,
+    rotor_resistance=1.8,
+    stator_reactance=1.3,
+    rotor_reactance=1.3,
+    mutual_reactance=43.08,
+)
+
+
+@pytest.fixture
+def motor_shaft_elements():
+    return [ShaftElement(L=0.1, idl=0, odl=0.05, material=steel) for _ in range(3)]
+
+
+def test_motor_with_shaft_elements_takes_inertia_from_the_elements(
+    motor_shaft_elements,
+):
+    # Reference: sums over the elements and the disk, written by hand.
+    disk = DiskElement(n=2, m=3.0, Id=0.01, Ip=0.02)
+    motor = ElectricMotor(
+        n=3,
+        **_CIRCUIT,
+        shaft_elements=motor_shaft_elements,
+        disk_elements=[disk],
+    )
+
+    assert isinstance(motor.mechanical_model, Rotor)
+    assert_allclose(motor.m, sum(sh.m for sh in motor_shaft_elements) + disk.m)
+    assert_allclose(motor.Ip, sum(sh.Im for sh in motor_shaft_elements) + disk.Ip)
+
+
+def test_lumped_motor_mechanical_model_is_a_disk():
+    motor = motor_example()
+    assert isinstance(motor.mechanical_model, DiskElement)
+
+
+@pytest.mark.parametrize(
+    "arguments",
+    [
+        {},
+        {"m": 10.0},
+        {"Ip": 0.03},
+        {"m": 10.0, "Ip": 0.03, "disk_elements": []},
+        {"m": 10.0, "Ip": 0.03, "bearing_elements": []},
+    ],
+)
+def test_motor_lumped_arguments_are_validated(arguments):
+    with pytest.raises(ValueError):
+        ElectricMotor(n=0, **_CIRCUIT, **arguments)
+
+
+@pytest.mark.parametrize("arguments", [{"m": 10.0}, {"Ip": 0.03}, {"Id": 0.0}])
+def test_motor_shaft_elements_exclude_lumped_arguments(motor_shaft_elements, arguments):
+    with pytest.raises(ValueError):
+        ElectricMotor(n=0, **_CIRCUIT, shaft_elements=motor_shaft_elements, **arguments)

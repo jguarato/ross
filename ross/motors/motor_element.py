@@ -38,7 +38,10 @@ class ElectricMotor:
     Parameters
     ----------
     n : int
-        Node at which the torque is applied to the shaft.
+        Node of the rotor where the motor is placed. With the lumped model, the
+        mass, the inertias and the torque of the motor are applied at this node.
+        With ``shaft_elements``, it is the node of the rotor to which the motor
+        model will be connected.
     power_rated : float, pint.Quantity
         Rated power [W].
     voltage_rated : float
@@ -55,13 +58,24 @@ class ElectricMotor:
         Rotor self-reactance at frequency [Ohm].
     mutual_reactance : float
         Mutual reactance at frequency [Ohm].
-    m : float, pint.Quantity
-        Mass of the motor [kg].
-    Ip : float, pint.Quantity
-        Polar Moment of inertia related to motor axis [kg.m²].
-    Id : float, optional, pint.Quantity
-        Diametral moment of inertia of the motor [kg.m²].
+    m : float, pint.Quantity, optional
+        Mass of the motor [kg]. Lumped model: it is required together with
+        ``Ip`` and cannot be given with ``shaft_elements``.
+    Ip : float, pint.Quantity, optional
+        Polar Moment of inertia related to motor axis [kg.m²]. Lumped model: it
+        is required together with ``m`` and cannot be given with
+        ``shaft_elements``.
+    Id : float, pint.Quantity, optional
+        Diametral moment of inertia of the motor [kg.m²]. Lumped model only.
         Default is 0.
+    shaft_elements : list of ross.ShaftElement, optional
+        Shaft elements of the motor. They are assembled as a rotor
+        (``motor.mechanical_model``) that is later connected to the rotor of the
+        load. It replaces ``m``, ``Ip`` and ``Id``.
+    disk_elements : list of ross.DiskElement, optional
+        Disk elements of the motor rotor. Only with ``shaft_elements``.
+    bearing_elements : list of ross.BearingElement, optional
+        Bearing elements of the motor rotor. Only with ``shaft_elements``.
     frequency_rated : float, optional, pint.Quantity
         Rated frequency [rad/s].
         Default is 60 Hz.
@@ -108,10 +122,19 @@ class ElectricMotor:
     This class models the electromechanical behavior of a TPIM and computes
     electric torque in time. It is not a rotor element. Its only contribution
     to the matrices assembled by ``Rotor`` is its mass ``m`` and moments of inertia
-    ``Id`` and ``Ip``, added as a disk at node ``n`` (see :py:attr:`mechanical_model`).
+    ``Id`` and ``Ip``, added as a disk at node ``n`` (``mechanical_model``).
 
-    The node ``n`` identifies where motor torque is applied on the shaft
-    (torsional DOF). :py:meth:`ross.Rotor.run_with_motor` simulates the motor
+    The attribute ``mechanical_model`` holds the mechanical model of the motor.
+    With the lumped model, it is a disk element with the mass ``m``, the
+    diametral inertia ``Id`` and the polar inertia ``Ip`` at node ``n``. With
+    ``shaft_elements``, it is the rotor assembled from the elements. The
+    attribute ``n_torque`` is the node where the torque is applied: ``n`` with
+    the lumped model, and the node of the motor rotor connected to the rotor of
+    the load otherwise (None until they are connected).
+
+    The node ``n`` is where the motor is placed in the rotor. The motor torque
+    acts on the torsional DOF of this node.
+    :py:meth:`ross.Rotor.run_with_motor` simulates the motor
     and applies its torque to the rotor. ``.run_direct_on_line()``,
     ``.run_with_inverter_vf()`` and ``.run_with_inverter_foc()`` simulate the
     motor alone.
@@ -158,9 +181,12 @@ class ElectricMotor:
         stator_reactance,
         rotor_reactance,
         mutual_reactance,
-        m,
-        Ip,
-        Id=0.0,
+        m=None,
+        Ip=None,
+        Id=None,
+        shaft_elements=None,
+        disk_elements=None,
+        bearing_elements=None,
         frequency_rated=None,
         n_poles=4,
         viscosity_coeff=0.0,
@@ -170,7 +196,7 @@ class ElectricMotor:
         initial_angle_net=None,
         short_circuit_ratio_net=50.0,
         XR_ratio_net=80.0,
-        tag=None,
+        tag="Motor",
         scale_factor=1,
         color="#001969",
     ):
@@ -185,9 +211,32 @@ class ElectricMotor:
         self.stator_reactance = float(stator_reactance)
         self.rotor_reactance = float(rotor_reactance)
         self.mutual_reactance = float(mutual_reactance)
-        self.Ip = float(Ip)
-        self.m = float(m)
-        self.Id = float(Id)
+
+        if shaft_elements is None:
+            if m is None or Ip is None:
+                raise ValueError(
+                    "Pass either 'm' and 'Ip' (lumped model) or 'shaft_elements' "
+                    "(finite element model)."
+                )
+
+            self._mechanical_model_type = "lumped"
+            self.mechanical_model = DiskElement(
+                n=n, m=m, Id=Id or 0.0, Ip=Ip, tag=tag, color=color
+            )
+            self.m = float(m)
+            self.Ip = float(Ip)
+            self.n_torque = n
+        else:
+            from ross.rotor_assembly import Rotor
+
+            self._mechanical_model_type = "fem"
+            self.mechanical_model = Rotor(
+                shaft_elements, disk_elements, bearing_elements, tag=tag
+            )
+            self.m = float(self.mechanical_model.m)
+            self.Ip = float(self.mechanical_model.Ip)
+            self.n_torque = None
+
         self.viscosity_coeff = float(viscosity_coeff)
         self.Ip_load = float(Ip_load)
 
@@ -393,64 +442,6 @@ class ElectricMotor:
             Hash value based on the element tag.
         """
         return hash(self.tag)
-
-    @property
-    def mechanical_model(self):
-        """Return the lumped model of the motor as a disk element.
-
-        The disk has the mass ``m``, the diametral inertia ``Id`` and the polar
-        inertia ``Ip`` of the motor at node ``n``. It is built from the current
-        ``n``, ``m``, ``Id``, ``Ip`` and ``tag`` of the motor.
-
-        Returns
-        -------
-        ross.DiskElement
-            Disk element with the mass and the moments of inertia of the motor.
-        """
-        return DiskElement(
-            n=self.n, m=self.m, Id=self.Id, Ip=self.Ip, tag=f"{self.tag} (motor)"
-        )
-
-    def has_mechanical_model(self, disk_elements):
-        """Check whether the lumped model of the motor is already among some disks.
-
-        A disk counts as the motor model if it has the same node, mass,
-        diametral inertia and polar inertia as :py:attr:`mechanical_model`.
-        Tag, color and degrees of freedom are ignored, because they change when
-        a rotor is assembled, loaded or concatenated.
-
-        Parameters
-        ----------
-        disk_elements : list
-            List of disk elements.
-
-        Returns
-        -------
-        bool
-            True if one of the disks is the lumped model of the motor.
-        """
-        inertia = self.mechanical_model
-        return any(
-            disk.n == inertia.n
-            and np.isclose(disk.m, inertia.m)
-            and np.isclose(disk.Id, inertia.Id)
-            and np.isclose(disk.Ip, inertia.Ip)
-            for disk in disk_elements
-        )
-
-    def set_tag(self, index, check_tag=True):
-        """Set a tag to the motor.
-
-        Parameters
-        ----------
-        index : int
-            The index used to build the tag.
-        check_tag : bool, optional
-            Whether to keep a tag that is already set.
-            Default is True.
-        """
-        if not check_tag or self.tag is None:
-            self.tag = f"Motor {index}"
 
     summary = Element.summary
     save = Element.save

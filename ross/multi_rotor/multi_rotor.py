@@ -259,9 +259,9 @@ class MultiRotor(Rotor):
             disk_elements,
             bearing_elements,
             point_mass_elements,
-            motor,
             tag=tag,
         )
+        self.motor = copy(motor)
 
         # Create mesh
         self.update_mesh_stiffness = update_mesh_stiffness

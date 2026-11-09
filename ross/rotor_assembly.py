@@ -236,8 +236,6 @@ class Rotor(object):
         List with the bearing elements
     point_mass_elements: list
         List with the point mass elements
-    motor: ElectricMotor, optional
-        Electric motor of the rotor.
     modal_damping_ratio: list, optional
         List of modal damping ratio(s) for the first modes
     default_damping_ratio: float, optional
@@ -303,7 +301,6 @@ class Rotor(object):
         disk_elements=None,
         bearing_elements=None,
         point_mass_elements=None,
-        motor=None,
         min_w=None,
         max_w=None,
         rated_w=None,
@@ -327,6 +324,7 @@ class Rotor(object):
             "beta": float(beta) if beta is not None else 0.0,
         }
 
+        self._motor = None
         self.set_tag(tag)
 
         ####################################################
@@ -368,8 +366,6 @@ class Rotor(object):
 
         elm_dict = {}
         elements = disk_elements + bearing_elements + point_mass_elements
-        if motor is not None:
-            elements.append(motor)
 
         for elm in elements:
             class_name = elm.__class__.__name__
@@ -382,14 +378,10 @@ class Rotor(object):
                 elm.n_l = elm.n
                 elm.n_r = elm.n
 
-        if motor is not None and not motor.has_mechanical_model(disk_elements):
-            disk_elements = disk_elements + [motor.mechanical_model]
-
         self.shaft_elements = sorted(shaft_elements, key=lambda el: el.n)
         self.bearing_elements = sorted(bearing_elements, key=lambda el: el.n)
         self.disk_elements = sorted(disk_elements, key=lambda el: el.n)
         self.point_mass_elements = sorted(point_mass_elements, key=lambda el: el.n)
-        self.motor = motor
 
         self.elements = [
             el
@@ -405,8 +397,6 @@ class Rotor(object):
 
         # check if tags are unique
         tags_list = [el.tag for el in self.elements]
-        if self.motor is not None:
-            tags_list.append(self.motor.tag)
         if len(tags_list) != len(set(tags_list)):
             raise ValueError("Tags should be unique.")
 
@@ -455,11 +445,7 @@ class Rotor(object):
             ]
         )
         df_point_mass = pd.DataFrame([el.summary() for el in self.point_mass_elements])
-        df_motor = (
-            pd.DataFrame([self.motor.summary()])
-            if self.motor is not None
-            else pd.DataFrame()
-        )
+        df_motor = pd.DataFrame()
 
         nodes_pos_l = np.zeros(len(df_shaft.n_l))
         nodes_pos_r = np.zeros(len(df_shaft.n_l))
@@ -631,17 +617,6 @@ class Rotor(object):
                 elm.dof_global_index
             )
 
-        if self.motor is not None:
-            motor = self.motor
-            dof_names = ("x", "y", "z", "alpha", "beta", "theta")
-            motor.dof_global_index = {
-                f"{name}_{motor.n}": int(self.number_dof * motor.n + i)
-                for i, name in enumerate(dof_names)
-            }
-            df.at[df.loc[df.tag == motor.tag].index[0], "dof_global_index"] = (
-                motor.dof_global_index
-            )
-
         df = df.copy()
 
         # define positions for disks
@@ -652,15 +627,6 @@ class Rotor(object):
             df.loc[df.tag == elm.tag, "nodes_pos_l"] = z_pos
             df.loc[df.tag == elm.tag, "nodes_pos_r"] = z_pos
             df.loc[df.tag == elm.tag, "y_pos"] = y_pos
-
-        # define positions for motor
-        if self.motor is not None:
-            elm = self.motor
-            i = self.nodes.index(elm.n)
-            z_pos = self.nodes_pos[i]
-            df.loc[df.tag == elm.tag, "nodes_pos_l"] = z_pos
-            df.loc[df.tag == elm.tag, "nodes_pos_r"] = z_pos
-            df.loc[df.tag == elm.tag, "y_pos"] = 0.0
 
         # define positions for bearings
         for elm in self.bearing_elements:
@@ -863,14 +829,51 @@ class Rotor(object):
         parameters = rotor_list[0]._init_parameters()
         parameters["tag"] = "Concatenated Rotor"
 
-        return cls(
+        rotor = cls(
             shaft_elements=shaft_elements,
             disk_elements=disk_elements,
             bearing_elements=bearing_elements,
             point_mass_elements=point_mass_elements,
-            motor=motor,
             **parameters,
         )
+        rotor.motor = motor
+
+        return rotor
+
+    @property
+    def motor(self):
+        """Electric motor of the rotor, or None if there is none.
+
+        Setting it registers the motor in the rotor: its tag, its degrees of
+        freedom and its row in ``df``.
+        """
+        return self._motor
+
+    @motor.setter
+    def motor(self, motor):
+        self._motor = motor
+        if motor is not None:
+            if motor.tag in [el.tag for el in self.elements]:
+                raise ValueError("Tags should be unique.")
+
+            dof_names = ("x", "y", "z", "alpha", "beta", "theta")
+            motor.dof_global_index = {
+                f"{name}_{motor.n}": int(self.number_dof * motor.n + i)
+                for i, name in enumerate(dof_names)
+            }
+
+            z_pos = self.nodes_pos[self.nodes.index(motor.n)]
+            df_motor = pd.DataFrame([motor.summary()])
+            df_motor["dof_global_index"] = [motor.dof_global_index]
+            df_motor["nodes_pos_l"] = z_pos
+            df_motor["nodes_pos_r"] = z_pos
+            df_motor["y_pos"] = 0.0
+            df_motor["shaft_number"] = 0.0
+
+            df = pd.concat([self.df, df_motor], sort=True)
+            df = df.sort_values(by="n_l")
+            self.df = df.reset_index(drop=True).copy()
+            self.df_motor = df_motor
 
     def set_tag(self, tag):
         """Set the tag for the current rotor."""
@@ -1146,7 +1149,6 @@ class Rotor(object):
             "disk_elements",
             "bearing_elements",
             "point_mass_elements",
-            "motor",
             "shafts",
         }
         sig = inspect.signature(self.__class__.__init__)
@@ -1567,9 +1569,71 @@ class Rotor(object):
             disk_elements=disk_elements,
             bearing_elements=bearing_elements,
             point_mass_elements=point_mass_elements,
-            motor=motor,
             **self._init_parameters(),
         )
+
+    def add_motor(self, motor):
+        """Add an electric motor to the rotor.
+
+        This method returns a new rotor with the motor connected at its node
+        ``n``. With the lumped model, the mass and the inertias of the motor are
+        added to the rotor as a disk element, as in :py:meth:`add_elements`. With
+        ``shaft_elements``, the rotor of the motor is concatenated to this rotor
+        (see :py:meth:`concatenate`): the motor is on the left of the rotor if
+        ``n`` is its first node, and on the right if ``n`` is its last node.
+
+        Parameters
+        ----------
+        motor : ross.ElectricMotor
+            Electric motor to be added.
+
+        Returns
+        -------
+        A rotor object.
+
+        Raises
+        ------
+        ValueError
+            If the rotor already has a motor, or if the motor has
+            ``shaft_elements`` and ``n`` is neither the first nor the last node.
+
+        Examples
+        --------
+        >>> import ross as rs
+        >>> rotor = rs.rotor_example().add_motor(rs.motor_example())
+        >>> rotor.motor.n
+        0
+        >>> len(rotor.disk_elements)
+        3
+        """
+        if self.motor is not None:
+            raise ValueError("The rotor already has a motor.")
+
+        if motor._mechanical_model_type == "lumped":
+            motor.set_tag(0)
+            inertia = motor.mechanical_model
+            inertia.n = inertia.n_l = inertia.n_r = motor.n
+            return self.add_elements([motor, inertia])
+
+        motor_rotor = motor.mechanical_model
+        if motor.n == min(self.nodes):
+            rotors = [motor_rotor, self]
+            joint_node = max(motor_rotor.nodes)
+        elif motor.n == max(self.nodes):
+            rotors = [self, motor_rotor]
+            joint_node = max(self.nodes)
+        else:
+            raise ValueError(
+                f"The motor node n={motor.n} must be the first or the last node "
+                "of the rotor."
+            )
+
+        full_model = Rotor.concatenate(rotors)
+        motor = deepcopy(motor)
+        motor.n = joint_node
+        full_model.motor = motor
+
+        return full_model
 
     @lru_cache()
     @check_units
@@ -5348,9 +5412,10 @@ class Rotor(object):
         >>> import ross as rs
         >>> from ross.probe import Probe
         >>> motor = rs.motor_example()
-        >>> rotor = rs.rotor_example().add_elements([motor])
-        >>> n1 = rotor.disk_elements[0].n
-        >>> n2 = rotor.disk_elements[1].n
+        >>> base_rotor = rs.rotor_example()
+        >>> rotor = base_rotor.add_motor(motor)
+        >>> n1 = base_rotor.disk_elements[0].n
+        >>> n2 = base_rotor.disk_elements[1].n
         >>> results = rotor.run_with_motor(
         ...     t=np.linspace(0, 1, 1000),
         ...     node=[n1, n2],
@@ -6000,7 +6065,6 @@ class Rotor(object):
             disk_elements=disk_elements,
             bearing_elements=bearing_elements,
             point_mass_elements=point_mass_elements,
-            motor=motor,
             **parameters,
         )
 

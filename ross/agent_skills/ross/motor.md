@@ -152,9 +152,7 @@ rotor = rs.Rotor(
     base_rotor.shaft_elements,
     base_rotor.disk_elements,
     bearings,
-    motor=motor,  # pass by keyword
-)
-# or: rotor = rs.rotor_example().add_elements([rs.motor_example()])
+).add_motor(motor)  # adds the mass and the inertia of the motor as a disk
 fig = rotor.plot_rotor()  # the motor is drawn at its node
 
 t = np.arange(0, 3.0 + 1e-4, 1e-4)
