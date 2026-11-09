@@ -382,6 +382,9 @@ class Rotor(object):
                 elm.n_l = elm.n
                 elm.n_r = elm.n
 
+        if motor is not None and not motor.has_mechanical_model(disk_elements):
+            disk_elements = disk_elements + [motor.mechanical_model]
+
         self.shaft_elements = sorted(shaft_elements, key=lambda el: el.n)
         self.bearing_elements = sorted(bearing_elements, key=lambda el: el.n)
         self.disk_elements = sorted(disk_elements, key=lambda el: el.n)
@@ -5235,8 +5238,9 @@ class Rotor(object):
         The motor is simulated independently and its electromagnetic torque
         (electric torque minus load torque) is applied to the torsional DOF
         at the motor node. Shaft speed is taken from the motor simulation, so
-        the unbalance force is time-varying. The motor does not contribute to
-        the rotor global structural matrices.
+        the unbalance force is time-varying. The motor mass ``m`` and inertia
+        ``Ip`` enter the rotor matrices as a disk. The motor simulation uses the inertia
+        of the motor (``Ip`` and ``Ip_load``), not the inertia of the whole rotor.
 
         Available plotting methods:
             .plot_1d()

@@ -65,6 +65,7 @@ def motor_high_inertia():
         stator_reactance=1.3,
         rotor_reactance=1.3,
         mutual_reactance=43.08,
+        m=10.0,
         Ip=0.0372 * 10000,
         viscosity_coeff=0.0,
         Ip_load=0.0,

@@ -437,13 +437,14 @@ def test_add_elements_valid(rotor3):
     new_rotor = rotor3.add_elements([seal, disk, point_mass, motor])
 
     assert len(new_rotor.bearing_elements) == len(rotor3.bearing_elements) + 1
-    assert len(new_rotor.disk_elements) == len(rotor3.disk_elements) + 1
+    # The added disk plus the inertia disk of the motor, which has no mass.
+    assert len(new_rotor.disk_elements) == len(rotor3.disk_elements) + 2
     assert len(new_rotor.point_mass_elements) == 1
     added_seals = [b for b in new_rotor.bearing_elements if isinstance(b, SealElement)]
     assert [s.n for s in added_seals] == [3]
-    assert sorted(d.n for d in new_rotor.disk_elements) == [2, 4, 5]
+    assert sorted(d.n for d in new_rotor.disk_elements) == [motor.n, 2, 4, 5]
     assert new_rotor.point_mass_elements[0].n == 3
-    assert_allclose(new_rotor.m_disks, rotor3.m_disks + 32)
+    assert_allclose(new_rotor.m_disks, rotor3.m_disks + 32 + motor.m)
     assert rotor3.motor is None
     assert new_rotor.motor == motor
 
@@ -3770,3 +3771,109 @@ def test_refine_add_nodes_and_refine_mesh_keep_the_motor():
         assert new_motor.n == new_motor.n_l == new_motor.n_r == 4
         assert_allclose(refined.nodes_pos[new_motor.n], rotor.nodes_pos[2])
         assert_allclose(refined.m, rotor.m)
+
+
+@pytest.fixture
+def rotor_with_lumped_motor():
+    base = rotor_example()
+    motor = motor_example()
+    return (
+        base,
+        motor,
+        Rotor(
+            base.shaft_elements,
+            base.disk_elements,
+            base.bearing_elements,
+            motor=motor,
+        ),
+    )
+
+
+@pytest.mark.parametrize("speed", [0.0, 100.0, 300.0, 600.0])
+def test_lumped_motor_matches_equivalent_disk(rotor_with_lumped_motor, speed):
+    # Reference: the same polar inertia written by hand as a massless disk.
+    base, motor, with_motor = rotor_with_lumped_motor
+    manual_disk = DiskElement(n=motor.n, m=motor.m, Id=0, Ip=motor.Ip)
+    manual = Rotor(
+        base.shaft_elements,
+        base.disk_elements + [manual_disk],
+        base.bearing_elements,
+    )
+
+    assert_allclose(with_motor.G(), manual.G(), atol=1e-12)
+    assert_allclose(with_motor.M(), manual.M(), atol=1e-12)
+    assert_allclose(
+        with_motor.run_modal(speed).wn, manual.run_modal(speed).wn, rtol=1e-9
+    )
+
+
+def test_lumped_motor_inertia_changes_gyroscopic_effect(rotor_with_lumped_motor):
+    base, _, with_motor = rotor_with_lumped_motor
+    wn_base = base.run_modal(600.0).wn
+    wn_motor = with_motor.run_modal(600.0).wn
+    assert not np.allclose(wn_base, wn_motor, rtol=1e-6)
+
+
+def test_lumped_motor_inertia_is_not_duplicated(rotor_with_lumped_motor, tmp_path):
+    _, motor, rotor = rotor_with_lumped_motor
+    n_disks = len(rotor.disk_elements)
+    bearing = BearingElement(n=3, kxx=1e5, cxx=0)
+
+    assert n_disks == len(rotor_example().disk_elements) + 1
+    assert len(rotor.add_elements([bearing]).disk_elements) == n_disks
+    assert len(rotor.refine_mesh().disk_elements) == n_disks
+
+    rotor.save(tmp_path / "rotor.toml")
+    assert len(Rotor.load(tmp_path / "rotor.toml").disk_elements) == n_disks
+
+    other = rotor_example()
+    concatenated = Rotor.concatenate([rotor, other])
+    assert len(concatenated.disk_elements) == n_disks + len(other.disk_elements)
+
+
+def test_motor_mechanical_model_is_a_disk_with_its_mass_and_inertia():
+    motor = motor_example()
+    disk = motor.mechanical_model
+    assert isinstance(disk, DiskElement)
+    assert disk.n == motor.n
+    assert_allclose(disk.m, motor.m)
+    assert_allclose(disk.Id, motor.Id)
+    assert_allclose(disk.Ip, motor.Ip)
+
+
+def test_motor_has_mechanical_model_ignores_tag_and_dofs():
+    motor = motor_example()
+    same = DiskElement(n=motor.n, m=motor.m, Id=0, Ip=motor.Ip, tag="other tag")
+    same.dof_global_index = {"x_0": 0}
+    other_ip = DiskElement(n=motor.n, m=motor.m, Id=0, Ip=2 * motor.Ip)
+    other_node = DiskElement(n=motor.n + 1, m=motor.m, Id=0, Ip=motor.Ip)
+    other_mass = DiskElement(n=motor.n, m=2 * motor.m, Id=0, Ip=motor.Ip)
+
+    other_id = DiskElement(n=motor.n, m=motor.m, Id=1.0 + motor.Id, Ip=motor.Ip)
+
+    assert motor.has_mechanical_model([same])
+    assert not motor.has_mechanical_model([other_ip, other_node, other_mass, other_id])
+    assert not motor.has_mechanical_model([])
+
+
+def test_lumped_motor_with_diametral_inertia_matches_equivalent_disk():
+    # Reference: the same mass and inertias written by hand as a disk.
+    base = rotor_example()
+    motor = motor_example()
+    motor.Id = 0.02
+    with_motor = Rotor(
+        base.shaft_elements,
+        base.disk_elements,
+        base.bearing_elements,
+        motor=motor,
+    )
+    manual = Rotor(
+        base.shaft_elements,
+        base.disk_elements + [DiskElement(n=motor.n, m=motor.m, Id=0.02, Ip=motor.Ip)],
+        base.bearing_elements,
+    )
+
+    assert_allclose(with_motor.M(), manual.M(), atol=1e-12)
+    assert_allclose(
+        with_motor.run_modal(300.0).wn, manual.run_modal(300.0).wn, rtol=1e-9
+    )
