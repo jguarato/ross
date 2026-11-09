@@ -52,7 +52,7 @@ class Element(ABC):
             for name, p in params.items()
             if p.kind not in (Parameter.VAR_POSITIONAL, Parameter.VAR_KEYWORD)
         ]
-        args = {arg: getattr(self, arg) for arg in args_list}
+        args = {arg: getattr(self, arg) for arg in args_list if hasattr(self, arg)}
 
         if more_args:
             args.update(more_args)
