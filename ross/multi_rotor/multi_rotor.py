@@ -11,6 +11,7 @@ from copy import deepcopy as copy
 
 import ross as rs
 from ross.element import Element
+from ross.motors.motor_element import ElectricMotor
 from ross.rotor_assembly import Rotor
 from ross.units import Q_, check_units
 from ross.utils import make_speed_array
@@ -227,7 +228,8 @@ class MultiRotor(Rotor):
 
         if R1_max_node >= R2_min_node:
             d_node = R1_max_node + 1
-            for elm in R2.elements:
+            motor = [] if R2.motor_element is None else [R2.motor_element]
+            for elm in [*R2.elements, *motor]:
                 elm.n += d_node
 
                 if getattr(elm, "n_link", None) is not None:
@@ -390,7 +392,7 @@ class MultiRotor(Rotor):
         driven_elements = []
 
         for el in new_elements:
-            if not isinstance(el, Element):
+            if not isinstance(el, (Element, ElectricMotor)):
                 raise ValueError(f"{el} is not a valid element.")
 
             el = copy(el)

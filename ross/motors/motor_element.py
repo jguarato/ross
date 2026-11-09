@@ -28,7 +28,7 @@ from .utils import (
 __all__ = ["ElectricMotor", "motor_example"]
 
 
-class ElectricMotor(Element):
+class ElectricMotor:
     """Create a 3-phase induction motor element for rotordynamic analysis.
 
     This class represents a Three-Phase Induction Motor (TPIM) using a synchronous
@@ -379,78 +379,24 @@ class ElectricMotor(Element):
         """
         return hash(self.tag)
 
-    def dof_mapping(self):
-        """Degrees of freedom mapping.
+    def set_tag(self, index, check_tag=True):
+        """Set a tag to the motor.
 
-        Returns a dictionary with a mapping between degree of freedom and its index.
-
-        Returns
-        -------
-        dof_mapping : dict
-            A dictionary containing the degrees of freedom and their indexes.
-
-        Examples
-        --------
-        The numbering of the degrees of freedom for each node.
-
-        Being the following their ordering for a node:
-
-        x_0 - horizontal translation
-        y_0 - vertical translation
-        z_0 - axial translation
-        alpha_0 - rotation around horizontal
-        beta_0  - rotation around vertical
-        theta_0 - torsion around axial
-
-        >>> motor = motor_example()
-        >>> motor.dof_mapping()
-        {'x_0': 0, 'y_0': 1, 'z_0': 2, 'alpha_0': 3, 'beta_0': 4, 'theta_0': 5}
+        Parameters
+        ----------
+        index : int
+            The index used to build the tag.
+        check_tag : bool, optional
+            Whether to keep a tag that is already set.
+            Default is True.
         """
-        return dict(x_0=0, y_0=1, z_0=2, alpha_0=3, beta_0=4, theta_0=5)
+        if not check_tag or self.tag is None:
+            self.tag = f"Motor {index}"
 
-    def M(self):
-        """Mass matrix.
-
-        Returns
-        -------
-        M : np.ndarray
-            Zero 6x6 matrix. ``ElectricMotor`` does not contribute to the rotor
-            structural mass matrix.
-        """
-        return np.zeros((6, 6))
-
-    def K(self):
-        """Stiffness matrix.
-
-        Returns
-        -------
-        K : np.ndarray
-            Zero 6x6 matrix. ``ElectricMotor`` does not contribute to the rotor
-            structural stiffness matrix.
-        """
-        return np.zeros((6, 6))
-
-    def C(self):
-        """Damping matrix.
-
-        Returns
-        -------
-        C : np.ndarray
-            Zero 6x6 matrix. ``ElectricMotor`` does not contribute to the rotor
-            structural damping matrix.
-        """
-        return np.zeros((6, 6))
-
-    def G(self):
-        """Gyroscopic matrix.
-
-        Returns
-        -------
-        G : np.ndarray
-            Zero 6x6 matrix. ``ElectricMotor`` does not contribute to the rotor
-            gyroscopic matrix.
-        """
-        return np.zeros((6, 6))
+    summary = Element.summary
+    save = Element.save
+    read_toml_data = Element.__dict__["read_toml_data"]
+    load = Element.__dict__["load"]
 
     def _hover_info(self):
         """Return hover information for the motor patch.
