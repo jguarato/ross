@@ -829,16 +829,14 @@ class Rotor(object):
         parameters = rotor_list[0]._parameters()
         parameters["tag"] = tag or "Concatenated Rotor"
 
-        rotor = cls(
-            shaft_elements=shaft_elements,
-            disk_elements=disk_elements,
-            bearing_elements=bearing_elements,
-            point_mass_elements=point_mass_elements,
+        return cls._from_elements(
+            shaft_elements,
+            disk_elements,
+            bearing_elements,
+            point_mass_elements,
+            motor=motor,
             **parameters,
         )
-        rotor.motor = motor
-
-        return rotor
 
     @property
     def motor(self):
@@ -1122,9 +1120,11 @@ class Rotor(object):
         True if other is equal to the reference parameter.
         False if not.
         """
-        return self.elements == other.elements and self.motor == other.motor and self._parameters(
-            {"tag"}
-        ) == other._parameters({"tag"})
+        return (
+            self.elements == other.elements
+            and self.motor == other.motor
+            and self._parameters({"tag"}) == other._parameters({"tag"})
+        )
 
     def _parameters(self, skip=[]):
         """Return keyword arguments to reconstruct this rotor.
@@ -1173,14 +1173,51 @@ class Rotor(object):
         """Rebuild a rotor while preserving its topology."""
         parameters = self._parameters()
         parameters.update(kwargs)
+        parameters.setdefault("motor", copy(self.motor))
 
-        return self.__class__(
+        return self._from_elements(
+            shaft_elements,
+            disk_elements,
+            bearing_elements,
+            point_mass_elements,
+            **parameters,
+        )
+
+    @classmethod
+    def _from_elements(
+        cls,
+        shaft_elements,
+        disk_elements=None,
+        bearing_elements=None,
+        point_mass_elements=None,
+        motor=None,
+        **parameters,
+    ):
+        """Build a rotor from its elements and connect the motor.
+
+        Parameters
+        ----------
+        shaft_elements, disk_elements, bearing_elements, point_mass_elements : list
+            Elements passed to the constructor.
+        motor : ross.ElectricMotor, optional
+            Motor connected after the rotor is built. Default is None.
+        **parameters
+            Other constructor arguments.
+
+        Returns
+        -------
+        rotor : ross.Rotor
+        """
+        rotor = cls(
             shaft_elements=shaft_elements,
             disk_elements=disk_elements,
             bearing_elements=bearing_elements,
             point_mass_elements=point_mass_elements,
             **parameters,
         )
+        rotor.motor = copy(motor)
+
+        return rotor
 
     def add_nodes(self, new_nodes_pos):
         """Add nodes to rotor.
@@ -1262,10 +1299,9 @@ class Rotor(object):
                 )
             shaft_elements.append(remainder)
 
-        return self.__class__(
+        return self._new_rotor(
             shaft_elements,
             **self._renumbered_elements(new_node),
-            **self._parameters(),
         )
 
     def _node_renumbering(self, added_nodes):
@@ -1337,6 +1373,7 @@ class Rotor(object):
             "disk_elements": disk_elements,
             "bearing_elements": bearing_elements,
             "point_mass_elements": point_mass_elements,
+            "motor": motor,
         }
 
     def refine_mesh(self, max_ld=0.5, min_ld=0.1, parts=None):
@@ -1535,10 +1572,9 @@ class Rotor(object):
                     )
                 )
 
-        return self.__class__(
+        return self._new_rotor(
             shaft_elements,
             **self._renumbered_elements(new_node),
-            **self._parameters(),
         )
 
     def add_elements(self, new_elements):
@@ -1573,7 +1609,7 @@ class Rotor(object):
         disk_elements = copy(self.disk_elements)
         bearing_elements = copy(self.bearing_elements)
         point_mass_elements = copy(self.point_mass_elements)
-        motor= copy(self.motor)
+        motor = copy(self.motor)
 
         for el in new_elements:
             if isinstance(el, ShaftElement):
@@ -1589,12 +1625,12 @@ class Rotor(object):
             else:
                 raise ValueError(f"{el} is not a valid element.")
 
-        return self.__class__(
+        return self._new_rotor(
             shaft_elements,
-            disk_elements=disk_elements,
-            bearing_elements=bearing_elements,
-            point_mass_elements=point_mass_elements,
-            **self._parameters(),
+            disk_elements,
+            bearing_elements,
+            point_mass_elements,
+            motor=motor,
         )
 
     def add_motor(self, motor):
@@ -6196,11 +6232,12 @@ class Rotor(object):
             elif isinstance(el, ElectricMotor):
                 motor = el
 
-        return cls(
-            shaft_elements=shaft_elements,
-            disk_elements=disk_elements,
-            bearing_elements=bearing_elements,
-            point_mass_elements=point_mass_elements,
+        return cls._from_elements(
+            shaft_elements,
+            disk_elements,
+            bearing_elements,
+            point_mass_elements,
+            motor=motor,
             **parameters,
         )
 
