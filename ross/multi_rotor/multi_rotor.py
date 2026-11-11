@@ -13,6 +13,7 @@ from copy import deepcopy as copy
 
 import ross as rs
 from ross.element import Element
+from ross.motors.motor_element import ElectricMotor
 from ross.rotor_assembly import Rotor
 from ross.units import Q_, check_units
 from ross.utils import make_speed_array
@@ -532,7 +533,7 @@ class MultiRotor(Rotor):
         """
         import ross
 
-        return {
+        data = {
             "ross_version": ross.__version__,
             "rotor_type": self.__class__.__name__,
             "multi_rotor": self._parameters(),
@@ -540,6 +541,13 @@ class MultiRotor(Rotor):
                 name: rotor._to_dict(file_format) for name, rotor in self.rotors.items()
             },
         }
+
+        if self.motor is not None and all(
+            rotor.motor is None for rotor in self.rotors.values()
+        ):
+            data.update(self.motor._to_dict(file_format))
+
+        return data
 
     @classmethod
     def _from_dict(cls, data):
@@ -559,11 +567,17 @@ class MultiRotor(Rotor):
         config = dict(data["multi_rotor"])
         config["coupled_nodes"] = tuple(config["coupled_nodes"])
 
-        return cls(
+        multi_rotor = cls(
             driving_rotor=Rotor._from_dict(data["rotors"]["driving"]),
             driven_rotor=Rotor._from_dict(data["rotors"]["driven"]),
             **config,
         )
+
+        for name, motor_data in data.items():
+            if name.startswith("ElectricMotor_"):
+                multi_rotor.motor = ElectricMotor.read_toml_data(motor_data)
+
+        return multi_rotor
 
     def __eq__(self, other):
         """Compare both assembled elements and multi-rotor configuration."""

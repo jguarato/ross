@@ -4050,6 +4050,65 @@ def test_run_with_motor_with_shaft_elements_applies_the_torque_at_the_joint(side
     assert np.isfinite(results.yout).all()
 
 
+def _rotor_with_motor(structure):
+    load = rotor_example()
+    if structure == "lumped":
+        return load.add_motor(motor_example())
+    n = min(load.nodes) if structure == "fem-left" else max(load.nodes)
+    return load.add_motor(_motor_with_shaft_elements(n))
+
+
+@pytest.mark.parametrize("file_format", [".toml", ".json"])
+@pytest.mark.parametrize("structure", ["lumped", "fem-left", "fem-right"])
+def test_save_and_load_keep_the_motor(structure, file_format, tmp_path):
+    # Reference: the rotor that was saved.
+    rotor = _rotor_with_motor(structure)
+    file = tmp_path / f"rotor{file_format}"
+    rotor.save(file)
+    loaded = Rotor.load(file)
+
+    assert loaded.motor is not None
+    assert loaded == rotor
+    assert loaded.motor.n == rotor.motor.n
+    assert loaded.motor.n_torque == rotor.motor.n_torque
+    assert loaded.motor.dof_global_index == rotor.motor.dof_global_index
+    assert_allclose(loaded.M(), rotor.M())
+
+    refined = loaded.refine(2)
+    reference = rotor.refine(2)
+    assert refined.motor.n == reference.motor.n
+    assert refined.motor.n_torque == reference.motor.n_torque
+    loaded.plot_rotor()
+
+
+@pytest.mark.parametrize("structure", ["lumped", "fem-left", "fem-right"])
+def test_run_with_motor_after_load_matches_the_saved_rotor(structure, tmp_path):
+    # Reference: the same simulation on the rotor that was saved.
+    rotor = _rotor_with_motor(structure)
+    rotor.save(tmp_path / "rotor.toml")
+    loaded = Rotor.load(tmp_path / "rotor.toml")
+
+    arguments = dict(
+        t=np.arange(0, 0.3 + 1e-3, 1e-3),
+        node=[2],
+        unbalance_magnitude=[5e-4],
+        unbalance_phase=[0.0],
+        drive_mode="DOL",
+        load_torque_entrance_time=0.1,
+        load_torque_ratio=1.0,
+    )
+
+    assert_allclose(
+        loaded.run_with_motor(**arguments).yout,
+        rotor.run_with_motor(**arguments).yout,
+    )
+
+
+def test_save_a_motor_with_shaft_elements_not_connected_raises(tmp_path):
+    with pytest.raises(ValueError, match="connected"):
+        _motor_with_shaft_elements(0).save(tmp_path / "motor.toml")
+
+
 def test_add_motor_with_shaft_elements_at_a_middle_node_raises():
     load = rotor_example()
     with pytest.raises(ValueError, match="first or the last node"):

@@ -4206,26 +4206,8 @@ class Rotor(object):
         # plot motor
         if self.motor is not None:
             motor = self.motor
-            z_pos = (
-                Q_(
-                    self.df[self.df.tag == motor.mechanical_model.tag][
-                        "nodes_pos_l"
-                    ].values[0],
-                    "m",
-                )
-                .to(length_units)
-                .m
-            )
-            y_pos = (
-                Q_(
-                    self.df[self.df.tag == motor.mechanical_model.tag]["y_pos"].values[
-                        0
-                    ],
-                    "m",
-                )
-                .to(length_units)
-                .m
-            )
+            z_pos = Q_(self.df_motor["nodes_pos_l"].values[0], "m").to(length_units).m
+            y_pos = Q_(self.df_motor["y_pos"].values[0], "m").to(length_units).m
             yc_pos = center_line_pos[self.nodes.index(motor.n)]
             diam = nodes_o_d[self.nodes.index(motor.n)]
             position = (z_pos, y_pos, yc_pos, diam)
@@ -6097,6 +6079,9 @@ class Rotor(object):
                 el.save(elements_file)
 
             data.update(load_data(elements_file))
+
+        if self.motor is not None:
+            data.update(self.motor._to_dict(file_format))
 
         return data
 

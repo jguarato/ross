@@ -453,9 +453,106 @@ class ElectricMotor:
             self.n_torque = value
 
     summary = Element.summary
-    save = Element.save
-    read_toml_data = Element.__dict__["read_toml_data"]
     load = Element.__dict__["load"]
+
+    def save(self, file, **more_args):
+        """Save the motor in a .toml or .json file.
+
+        The file has the arguments needed to build the motor again, the model
+        of its structure and the node where the torque is applied. A motor with
+        ``shaft_elements`` is saved with the equivalent mass and inertia, because
+        its elements belong to the rotor it is connected to.
+
+        Parameters
+        ----------
+        file : str, pathlib.Path
+            The name of the file the motor will be saved in.
+        more_args : dict, optional
+            More arguments to be saved if needed.
+
+        Raises
+        ------
+        ValueError
+            If the motor has ``shaft_elements`` and is not connected to a rotor.
+
+        Examples
+        --------
+        >>> from tempfile import tempdir
+        >>> from pathlib import Path
+        >>> file = Path(tempdir) / "motor.toml"
+        >>> motor = motor_example()
+        >>> motor.save(file)
+        >>> ElectricMotor.load(file) == motor
+        True
+        """
+        if self._mechanical_model_type == "fem" and self.n_torque is None:
+            raise ValueError(
+                "A motor with shaft_elements is saved with the rotor it is "
+                "connected to."
+            )
+
+        Id = 0.0
+        if self._mechanical_model_type == "lumped":
+            Id = self.mechanical_model.Id
+
+        Element.save(
+            self,
+            file,
+            structure=self._mechanical_model_type,
+            n_torque=self.n_torque,
+            Id=Id,
+            **more_args,
+        )
+
+    def _to_dict(self, file_format=".toml"):
+        """Return the motor data in the format written by ``save()``.
+
+        Parameters
+        ----------
+        file_format : str, optional
+            File format used to serialize the motor (".toml" or ".json").
+            Default is ".toml".
+
+        Returns
+        -------
+        data : dict
+            Dictionary with one entry for the motor, keyed by its class and tag.
+        """
+        from tempfile import TemporaryDirectory
+        from ross.utils import load_data
+
+        with TemporaryDirectory() as tmp_dir:
+            motor_file = Path(tmp_dir) / f"motor{file_format}"
+            self.save(motor_file)
+            return load_data(motor_file)
+
+    @classmethod
+    def read_toml_data(cls, data):
+        """Read and parse data stored in a .toml or .json file.
+
+        Parameters
+        ----------
+        data : dict
+            Dictionary obtained from toml.load() or json.load(), in the format
+            saved by :py:meth:`save`.
+
+        Returns
+        -------
+        The motor object. A motor saved with ``shaft_elements`` has the equivalent
+        mass and inertia as its structure and keeps its torque node.
+        """
+        data = dict(data)
+        structure = data.pop("structure", "lumped")
+        n_torque = data.pop("n_torque", None)
+
+        arguments = set(signature(cls.__init__).parameters).intersection(data)
+        motor = cls(**{name: data[name] for name in arguments})
+
+        if structure == "fem":
+            motor._mechanical_model_type = "fem"
+            motor.n_torque = n_torque
+
+        return motor
 
     def _hover_info(self):
         """Return hover information for the motor patch.

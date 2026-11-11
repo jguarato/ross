@@ -214,6 +214,22 @@ def test_add_motor_twice_raises_in_multi_rotor(multi_rotor):
         with_motor.add_motor(motor_example())
 
 
+@pytest.mark.parametrize("file_format", [".toml", ".json"])
+def test_save_and_load_keep_the_motor(multi_rotor, file_format, tmp_path):
+    # Reference: the multi-rotor that was saved.
+    with_motor = multi_rotor.add_motor(motor_example())
+    file = tmp_path / f"multi_rotor{file_format}"
+    with_motor.save(file)
+    loaded = rs.MultiRotor.load(file)
+
+    assert isinstance(loaded, rs.MultiRotor)
+    assert loaded.motor is not None
+    assert loaded.motor == with_motor.motor
+    assert loaded.motor.n == with_motor.motor.n
+    assert loaded.motor.n_torque == with_motor.motor.n_torque
+    assert_allclose(loaded.M(), with_motor.M())
+
+
 def test_new_parameters_keep_3_0_positional_calls():
     rotor1, rotor2 = gear_pair_rotors()
     square = {"enable": True, "amplitude_ratio": 0.275}
