@@ -3848,7 +3848,7 @@ def test_amb_non_collocation_same_after_refine_mesh_and_refine(collocated):
 def test_refine_add_nodes_and_refine_mesh_keep_the_motor():
     rotor = rotor_example()
     motor = motor_example()
-    motor.n = motor.n_l = motor.n_r = 2
+    motor.n = 2
     rotor = rotor.add_motor(motor)
     for refined in (
         rotor.refine(2),
@@ -3857,8 +3857,31 @@ def test_refine_add_nodes_and_refine_mesh_keep_the_motor():
     ):
         new_motor = refined.motor
         assert new_motor is not None
-        assert new_motor.n == new_motor.n_l == new_motor.n_r == 4
+        assert new_motor.n == new_motor.n_torque == 4
         assert_allclose(refined.nodes_pos[new_motor.n], rotor.nodes_pos[2])
+        assert_allclose(refined.m, rotor.m)
+
+
+@pytest.mark.parametrize("side", ["left", "right"])
+def test_refine_add_nodes_and_refine_mesh_keep_the_motor_with_shaft_elements(side):
+    # Reference: the nodes keep their axial positions. On the left, the motor
+    # starts at 0 and the joint is its length, 3 shaft elements of 0.1 m. On the
+    # right, the motor is placed at the last node of the load, which is the joint.
+    load = rotor_example()
+    n = min(load.nodes) if side == "left" else max(load.nodes)
+    rotor = load.add_motor(_motor_with_shaft_elements(n))
+    if side == "left":
+        motor_position, joint_position = 0.0, 0.3
+    else:
+        motor_position = joint_position = load.nodes_pos[max(load.nodes)]
+    for refined in (
+        rotor.refine(2),
+        rotor.refine_mesh(parts=2),
+        rotor.add_nodes(_equal_cuts(rotor, 2)),
+    ):
+        new_motor = refined.motor
+        assert_allclose(refined.nodes_pos[new_motor.n], motor_position, atol=1e-12)
+        assert_allclose(refined.nodes_pos[new_motor.n_torque], joint_position)
         assert_allclose(refined.m, rotor.m)
 
 

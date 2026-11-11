@@ -359,11 +359,6 @@ class Rotor(object):
 
             elm.set_tag(elm_dict[class_name] - 1)
 
-            if isinstance(elm, (BearingElement, DiskElement)):
-                # keep n_l and n_r in sync with n
-                elm.n_l = elm.n
-                elm.n_r = elm.n
-
         self.shaft_elements = sorted(shaft_elements, key=lambda el: el.n)
         self.bearing_elements = sorted(bearing_elements, key=lambda el: el.n)
         self.disk_elements = sorted(disk_elements, key=lambda el: el.n)
@@ -680,13 +675,13 @@ class Rotor(object):
                                     [
                                         max(
                                             df_shaft["odl"][
-                                                df_shaft._n
+                                                df_shaft.n
                                                 == int(dfb_z_pos.iloc[i]["n_l"])
                                             ].values
                                         ),
                                         max(
                                             df_shaft["odr"][
-                                                df_shaft._n
+                                                df_shaft.n
                                                 == int(dfb_z_pos.iloc[i]["n_l"]) - 1
                                             ].values
                                         ),
@@ -1361,16 +1356,14 @@ class Rotor(object):
             *motor_list,
         ]:
             elm.n = new_node(elm.n)
-        for elm in [*disk_elements, *motor_list]:
-            elm.n_l = elm.n_r = elm.n
-        for elm in motor_list:
-            if elm.n_torque is not None:
-                elm.n_torque = new_node(elm.n_torque)
-        for elm in bearing_elements:
-            if elm.n_link is not None:
-                elm.n_link = new_node(elm.n_link)
-            if hasattr(elm, "sensor_node"):
-                elm.sensor_node = new_node(elm.sensor_node)
+            if elm in bearing_elements:
+                if elm.n_link is not None:
+                    elm.n_link = new_node(elm.n_link)
+                if hasattr(elm, "sensor_node"):
+                    elm.sensor_node = new_node(elm.sensor_node)
+            if elm in motor_list:
+                if elm._mechanical_model_type == "fem":
+                    elm.n_torque = new_node(elm.n_torque)
 
         return {
             "disk_elements": disk_elements,
@@ -1677,10 +1670,9 @@ class Rotor(object):
 
         if motor._mechanical_model_type == "lumped":
             inertia = motor.mechanical_model
-            inertia.n = inertia.n_l = inertia.n_r = motor.n
+            inertia.n = motor.n
             full_model = self.add_elements([inertia])
             inertia.tag += f" (from {motor.tag})"
-            motor.n_torque = motor.n
 
         else:
             motor_rotor = motor.mechanical_model

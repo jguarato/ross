@@ -130,7 +130,7 @@ class ElectricMotor:
     ``shaft_elements``, it is the rotor assembled from the elements. The
     attribute ``n_torque`` is the node where the torque is applied: ``n`` with
     the lumped model, and the node of the motor rotor connected to the rotor of
-    the load otherwise (None until they are connected).
+    the load otherwise (None until ``Rotor.add_motor`` connects them).
 
     The node ``n`` is where the motor is placed in the rotor. The motor torque
     acts on the torsional DOF of this node.
@@ -225,7 +225,6 @@ class ElectricMotor:
             )
             self.m = float(m)
             self.Ip = float(Ip)
-            self.n_torque = n
         else:
             from ross.rotor_assembly import Rotor
 
@@ -291,8 +290,6 @@ class ElectricMotor:
         self.short_circuit_resistance = Xsc / self.XR_ratio_net
 
         self.n = n
-        self.n_l = n
-        self.n_r = n
         self.tag = tag
         self.scale_factor = scale_factor
         self.color = color
@@ -440,6 +437,20 @@ class ElectricMotor:
             Hash value based on the element tag.
         """
         return hash(self.tag)
+
+    @property
+    def n(self):
+        """Node where the motor is placed in the rotor.
+
+        With the lumped model, setting it also sets ``n_torque`` to the same node.
+        """
+        return self._n
+
+    @n.setter
+    def n(self, value):
+        self._n = value
+        if self._mechanical_model_type == "lumped":
+            self.n_torque = value
 
     summary = Element.summary
     save = Element.save
