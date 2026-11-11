@@ -828,7 +828,7 @@ class Rotor(object):
 
             dof_names = ("x", "y", "z", "alpha", "beta", "theta")
             motor.dof_global_index = {
-                f"{name}_{motor.n}": int(self.number_dof * motor.n + i)
+                f"{name}_{motor.n_torque}": int(self.number_dof * motor.n_torque + i)
                 for i, name in enumerate(dof_names)
             }
 
@@ -5604,7 +5604,7 @@ class Rotor(object):
 
         Ktq = np.zeros((self.ndof, self.ndof))
         for sh in self.shaft_elements:
-            if sh.n_l == motor.n or sh.n_r == motor.n_torque:
+            if motor.n_torque in (sh.n_l, sh.n_r):
                 dofs = list(sh.dof_global_index.values())
                 Ktq[np.ix_(dofs, dofs)] += sh.Ktq()
 

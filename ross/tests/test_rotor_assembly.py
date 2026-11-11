@@ -4019,6 +4019,37 @@ def test_add_motor_with_shaft_elements_matches_concatenate(side):
     assert len(joined.shaft_elements) == len(load.shaft_elements) + 3
 
 
+@pytest.mark.parametrize("side", ["left", "right"])
+def test_run_with_motor_with_shaft_elements_applies_the_torque_at_the_joint(side):
+    # Reference: the torsional DOF of the joint node, taken from a shaft element
+    # that ends at that node.
+    load = rotor_example()
+    n = min(load.nodes) if side == "left" else max(load.nodes)
+    rotor = load.add_motor(_motor_with_shaft_elements(n))
+    motor = rotor.motor
+    joint_shaft = next(
+        sh for sh in rotor.shaft_elements if motor.n_torque in (sh.n_l, sh.n_r)
+    )
+
+    assert (
+        motor.dof_global_index[f"theta_{motor.n_torque}"]
+        == joint_shaft.dof_global_index[f"theta_{motor.n_torque}"]
+    )
+
+    t = np.arange(0, 0.3 + 1e-3, 1e-3)
+    results = rotor.run_with_motor(
+        t=t,
+        node=[2],
+        unbalance_magnitude=[5e-4],
+        unbalance_phase=[0.0],
+        drive_mode="DOL",
+        load_torque_entrance_time=0.1,
+        load_torque_ratio=1.0,
+    )
+
+    assert np.isfinite(results.yout).all()
+
+
 def test_add_motor_with_shaft_elements_at_a_middle_node_raises():
     load = rotor_example()
     with pytest.raises(ValueError, match="first or the last node"):
