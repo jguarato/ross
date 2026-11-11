@@ -174,13 +174,44 @@ def test_add_elements():
         None,
         rs.Material(name="add_elements_mat", rho=7800, E=2e11, G_s=8e10),
         [rs.DiskElement(n=2, m=1.0, Id=0.01, Ip=0.02)],
+        motor_example(),
     ],
-    ids=["str", "None", "Material", "nested-list"],
+    ids=["str", "None", "Material", "nested-list", "motor"],
 )
 def test_add_elements_rejects_invalid(multi_rotor, invalid):
     # Same message as Rotor.add_elements, which raised ValueError in 3.0.0.
     with pytest.raises(ValueError, match="is not a valid element"):
         multi_rotor.add_elements([invalid])
+
+
+@pytest.mark.parametrize("rotor_name", ["driving", "driven"])
+def test_add_motor_lumped(multi_rotor, rotor_name):
+    # Reference: the mass and the polar inertia of the motor written by hand as
+    # a disk added to the same node.
+    nodes = multi_rotor.rotors["driving"].nodes
+    if rotor_name == "driven":
+        nodes = multi_rotor.driven_nodes
+    motor = motor_example()
+    motor.n = int(nodes[1])
+
+    new_rotor = multi_rotor.add_motor(motor)
+    manual = multi_rotor.add_elements(
+        [rs.DiskElement(n=motor.n, m=motor.m, Id=0.0, Ip=motor.Ip)]
+    )
+
+    assert multi_rotor.motor is None
+    assert new_rotor.motor.n == motor.n
+    assert len(new_rotor.disk_elements) == len(multi_rotor.disk_elements) + 1
+    assert_allclose(new_rotor.M(), manual.M())
+    assert_allclose(new_rotor.G(), manual.G())
+    for frequency in (0.0, 100.0, 300.0):
+        assert_allclose(new_rotor.K(frequency), manual.K(frequency))
+
+
+def test_add_motor_twice_raises_in_multi_rotor(multi_rotor):
+    with_motor = multi_rotor.add_motor(motor_example())
+    with pytest.raises(ValueError, match="already has a motor"):
+        with_motor.add_motor(motor_example())
 
 
 def test_new_parameters_keep_3_0_positional_calls():

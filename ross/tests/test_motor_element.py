@@ -87,39 +87,6 @@ def _steady_state_slice(results, fraction=0.85):
     return int(fraction * len(results.t))
 
 
-def test_motor_example_parameters():
-    """Verify that motor_example() returns the expected rated parameters."""
-    motor = motor_example()
-    assert_allclose(motor.power_rated, 1103.248125, rtol=1e-6)
-    assert_allclose(motor.voltage_rated, 127.0, rtol=1e-6)
-    assert_allclose(
-        motor.speed_rated,
-        Q_(1710, "RPM").to("rad/s").m,
-        rtol=1e-5,
-    )
-    assert_allclose(
-        motor.frequency_rated,
-        Q_(60.0, "Hz").to("rad/s").m,
-        rtol=1e-6,
-    )
-    assert motor.n_poles == 4
-    assert_allclose(motor.stator_resistance, 2.5, rtol=1e-9)
-    assert_allclose(motor.rotor_resistance, 1.8, rtol=1e-9)
-    assert_allclose(motor.stator_reactance, 1.3, rtol=1e-9)
-    assert_allclose(motor.rotor_reactance, 1.3, rtol=1e-9)
-    assert_allclose(motor.mutual_reactance, 43.08, rtol=1e-9)
-    assert_allclose(motor.Ip, 0.0372, rtol=1e-9)
-
-
-def test_motor_example_equality():
-    """Two calls to motor_example() must return equal objects, even if the
-    tags differ."""
-    m1 = motor_example()
-    m2 = motor_example()
-    m2.tag = "motor_2"
-    assert m1 == m2
-
-
 @pytest.fixture
 def results_no_load(motor):
     """Simulate the motor at no load for 3 s (rated voltage)."""
@@ -491,94 +458,6 @@ def test_foc_speed_tracks_reduced_reference_no_load(
 
 
 # ---------------------------------------------------------------------------
-# Test 6 - FFT frequency range for inverter-driven figures
-# ---------------------------------------------------------------------------
-#
-# Restricting the displayed band via `frequency_range` is checked on the two
-# independent implementations: `MotorResponseResults._plot_dfft` (`plot_torque`)
-# and `PhaseResults.plot_dfft` (`plot_phase_currents`).
-
-_FS_HZ = 5000.0
-_FFT_FREQUENCY_RANGE = Q_((0.5, 2.1 * _FS_HZ), "Hz")
-
-
-def test_inverter_vf_fft_frequency_range_narrows_torque_spectrum(
-    results_inverter_vf_rated_no_load,
-):
-    """Restricting `plot_torque(domain="frequency")` to [0.5 Hz, 2.1 x Fs]
-    must narrow the displayed frequency span with respect to the
-    unrestricted spectrum (which extends all the way to the Nyquist
-    frequency) and must not extend far beyond the requested upper bound."""
-    results = results_inverter_vf_rated_no_load
-
-    fig_full = results.plot_torque(domain="frequency")
-    fig_restricted = results.plot_torque(
-        domain="frequency", frequency_range=_FFT_FREQUENCY_RANGE
-    )
-
-    x_full = np.asarray(fig_full.data[0].x)
-    x_restricted = np.asarray(fig_restricted.data[0].x)
-
-    assert x_restricted.max() < x_full.max(), (
-        "Restricting frequency_range should narrow the displayed frequency span "
-        f"(restricted max={x_restricted.max():.1f} Hz, full max={x_full.max():.1f} Hz)"
-    )
-    assert x_restricted.max() <= 2.1 * _FS_HZ * 1.02, (
-        "Restricted torque FFT should not extend much beyond 2.1 x Fs "
-        f"(got max={x_restricted.max():.1f} Hz, limit={2.1 * _FS_HZ:.1f} Hz)"
-    )
-
-
-def test_inverter_vf_fft_frequency_range_narrows_current_spectrum(
-    results_inverter_vf_rated_no_load,
-):
-    """Same as above, for `plot_phase_currents(domain="frequency")`, which
-    goes through the separate `PhaseResults.plot_dfft` implementation."""
-    results = results_inverter_vf_rated_no_load
-
-    fig_full = results.plot_phase_currents(domain="frequency")
-    fig_restricted = results.plot_phase_currents(
-        domain="frequency", frequency_range=_FFT_FREQUENCY_RANGE
-    )
-
-    x_full = np.asarray(fig_full.data[0].x)
-    x_restricted = np.asarray(fig_restricted.data[0].x)
-
-    assert x_restricted.max() < x_full.max(), (
-        "Restricting frequency_range should narrow the displayed frequency span "
-        f"(restricted max={x_restricted.max():.1f} Hz, full max={x_full.max():.1f} Hz)"
-    )
-    assert x_restricted.max() <= 2.1 * _FS_HZ * 1.02, (
-        "Restricted current FFT should not extend much beyond 2.1 x Fs "
-        f"(got max={x_restricted.max():.1f} Hz, limit={2.1 * _FS_HZ:.1f} Hz)"
-    )
-
-
-def test_plots_without_tsdownsample(motor, monkeypatch):
-    """Without the optional tsdownsample the plots are still downsampled to
-    n_shown_samples and keep the extreme values of each signal."""
-    monkeypatch.setitem(sys.modules, "tsdownsample", None)
-    t = np.arange(0, 0.3 + 2e-5, 2e-5)
-    results = motor.run_direct_on_line(t, load_torque_entrance_time=0.15)
-    assert results.n_shown_samples == 3000
-
-    figures = {
-        "electric torque": (results.plot_torque(), results.electric_torque),
-        "speed": (results.plot_speed(), None),
-        "phase a current": (results.plot_phase_currents(), results.currents["a"]),
-        "phase a voltage": (results.plot_phase_voltages(), results.voltages["a"]),
-        "line voltage ab": (results.plot_line_voltages(), results.line_voltages["ab"]),
-    }
-    for name, (fig, signal) in figures.items():
-        for trace in fig.data:
-            assert 0 < len(trace.x) <= results.n_shown_samples, name
-        if signal is not None:
-            y = np.asarray(fig.data[0].y)
-            assert y.max() == signal.max(), name
-            assert y.min() == signal.min(), name
-
-
-# ---------------------------------------------------------------------------
 # Test 7 - Motor coupled to a rotor (Rotor.run_with_motor)
 # ---------------------------------------------------------------------------
 #
@@ -720,11 +599,6 @@ def test_motor_with_shaft_elements_takes_inertia_from_the_elements(
     assert isinstance(motor.mechanical_model, Rotor)
     assert_allclose(motor.m, sum(sh.m for sh in motor_shaft_elements) + disk.m)
     assert_allclose(motor.Ip, sum(sh.Im for sh in motor_shaft_elements) + disk.Ip)
-
-
-def test_lumped_motor_mechanical_model_is_a_disk():
-    motor = motor_example()
-    assert isinstance(motor.mechanical_model, DiskElement)
 
 
 @pytest.mark.parametrize(

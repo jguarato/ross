@@ -1561,7 +1561,8 @@ class Rotor(object):
         Parameters
         ----------
         new_elements : list
-            List with the new elements.
+            List with the new elements. A motor is not an element: use
+            :py:meth:`add_motor`.
 
         Returns
         -------
@@ -1593,8 +1594,6 @@ class Rotor(object):
                 bearing_elements.append(el)
             elif isinstance(el, PointMass):
                 point_mass_elements.append(el)
-            elif isinstance(el, ElectricMotor):
-                motor = el
             else:
                 raise ValueError(f"{el} is not a valid element.")
 
@@ -1648,7 +1647,11 @@ class Rotor(object):
         if motor._mechanical_model_type == "lumped":
             inertia = motor.mechanical_model
             inertia.n = motor.n
+
             full_model = self.add_elements([inertia])
+
+            inertia = next(elm for elm in full_model.disk_elements if elm.n == motor.n)
+            motor.mechanical_model = inertia
             inertia.tag += f" (from {motor.tag})"
 
         else:
