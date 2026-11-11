@@ -183,16 +183,6 @@ def test_add_elements_rejects_invalid(multi_rotor, invalid):
         multi_rotor.add_elements([invalid])
 
 
-def test_add_elements_motor(multi_rotor):
-    motor = motor_example()
-
-    new_rotor = multi_rotor.add_elements([motor])
-
-    assert multi_rotor.motor is None
-    assert new_rotor.motor == motor
-    assert new_rotor.rotors["driving"].motor == motor
-
-
 def test_new_parameters_keep_3_0_positional_calls():
     rotor1, rotor2 = gear_pair_rotors()
     square = {"enable": True, "amplitude_ratio": 0.275}

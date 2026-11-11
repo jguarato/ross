@@ -1361,8 +1361,11 @@ class Rotor(object):
             *motor_list,
         ]:
             elm.n = new_node(elm.n)
-        for elm in disk_elements:
+        for elm in [*disk_elements, *motor_list]:
             elm.n_l = elm.n_r = elm.n
+        for elm in motor_list:
+            if elm.n_torque is not None:
+                elm.n_torque = new_node(elm.n_torque)
         for elm in bearing_elements:
             if elm.n_link is not None:
                 elm.n_link = new_node(elm.n_link)
@@ -1670,28 +1673,32 @@ class Rotor(object):
         if self.motor is not None:
             raise ValueError("The rotor already has a motor.")
 
+        motor = copy(motor)
+
         if motor._mechanical_model_type == "lumped":
-            motor.set_tag(0)
             inertia = motor.mechanical_model
             inertia.n = inertia.n_l = inertia.n_r = motor.n
-            return self.add_elements([motor, inertia])
+            full_model = self.add_elements([inertia])
+            inertia.tag += f" (from {motor.tag})"
+            motor.n_torque = motor.n
 
-        motor_rotor = motor.mechanical_model
-        if motor.n == min(self.nodes):
-            rotors = [motor_rotor, self]
-            joint_node = max(motor_rotor.nodes)
-        elif motor.n == max(self.nodes):
-            rotors = [self, motor_rotor]
-            joint_node = max(self.nodes)
         else:
-            raise ValueError(
-                f"The motor node n={motor.n} must be the first or the last node "
-                "of the rotor."
-            )
+            motor_rotor = motor.mechanical_model
+            if motor.n == min(self.nodes):
+                rotors = [motor_rotor, self]
+                joint_node = max(motor_rotor.nodes)
+            elif motor.n == max(self.nodes):
+                rotors = [self, motor_rotor]
+                joint_node = max(self.nodes)
+            else:
+                raise ValueError(
+                    f"The motor node n={motor.n} must be the first or the last node "
+                    "of the rotor."
+                )
 
-        full_model = Rotor.concatenate(rotors)
-        motor = copy(motor)
-        motor.n = joint_node
+            full_model = Rotor.concatenate(rotors)
+            motor.n_torque = joint_node
+
         full_model.motor = motor
 
         return full_model
@@ -4228,12 +4235,22 @@ class Rotor(object):
         if self.motor is not None:
             motor = self.motor
             z_pos = (
-                Q_(self.df[self.df.tag == motor.tag]["nodes_pos_l"].values[0], "m")
+                Q_(
+                    self.df[self.df.tag == motor.mechanical_model.tag][
+                        "nodes_pos_l"
+                    ].values[0],
+                    "m",
+                )
                 .to(length_units)
                 .m
             )
             y_pos = (
-                Q_(self.df[self.df.tag == motor.tag]["y_pos"].values[0], "m")
+                Q_(
+                    self.df[self.df.tag == motor.mechanical_model.tag]["y_pos"].values[
+                        0
+                    ],
+                    "m",
+                )
                 .to(length_units)
                 .m
             )
@@ -5610,12 +5627,12 @@ class Rotor(object):
         ).T
 
         # Add torque to the rotor
-        dof_theta = motor.dof_global_index[f"theta_{motor.n}"]
+        dof_theta = motor.dof_global_index[f"theta_{motor.n_torque}"]
         F[:, dof_theta] += torque
 
         Ktq = np.zeros((self.ndof, self.ndof))
         for sh in self.shaft_elements:
-            if sh.n_l == motor.n or sh.n_r == motor.n:
+            if sh.n_l == motor.n or sh.n_r == motor.n_torque:
                 dofs = list(sh.dof_global_index.values())
                 Ktq[np.ix_(dofs, dofs)] += sh.Ktq()
 

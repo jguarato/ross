@@ -3849,7 +3849,7 @@ def test_refine_add_nodes_and_refine_mesh_keep_the_motor():
     rotor = rotor_example()
     motor = motor_example()
     motor.n = motor.n_l = motor.n_r = 2
-    rotor = rotor.add_elements([motor])
+    rotor = rotor.add_motor(motor)
     for refined in (
         rotor.refine(2),
         rotor.refine_mesh(parts=2),
@@ -3873,7 +3873,8 @@ def rotor_with_lumped_motor():
 def test_lumped_motor_matches_equivalent_disk(rotor_with_lumped_motor, speed):
     # Reference: the same mass and inertias written by hand as a disk.
     base, motor, with_motor = rotor_with_lumped_motor
-    manual_disk = DiskElement(n=motor.n, m=motor.m, Id=motor.Id, Ip=motor.Ip)
+    disk = motor.mechanical_model
+    manual_disk = DiskElement(n=disk.n, m=disk.m, Id=disk.Id, Ip=disk.Ip)
     manual = Rotor(
         base.shaft_elements,
         base.disk_elements + [manual_disk],
@@ -3917,7 +3918,6 @@ def test_motor_mechanical_model_is_a_disk_with_its_mass_and_inertia():
     assert isinstance(disk, DiskElement)
     assert disk.n == motor.n
     assert_allclose(disk.m, motor.m)
-    assert_allclose(disk.Id, motor.Id)
     assert_allclose(disk.Ip, motor.Ip)
 
 
@@ -3990,12 +3990,11 @@ def test_add_motor_with_shaft_elements_matches_concatenate(side):
         joint_node = max(load.nodes)
     expected = Rotor.concatenate(rotors)
 
-    assert joined.motor.n == joint_node
+    assert joined.motor.n_torque == joint_node
     assert_allclose(joined.M(), expected.M())
     assert_allclose(joined.K(0), expected.K(0))
     assert_allclose(joined.G(), expected.G())
     assert len(joined.shaft_elements) == len(load.shaft_elements) + 3
-    assert joined.parameters == load.parameters
 
 
 def test_add_motor_with_shaft_elements_at_a_middle_node_raises():

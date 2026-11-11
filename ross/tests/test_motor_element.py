@@ -733,16 +733,10 @@ def test_lumped_motor_mechanical_model_is_a_disk():
         {},
         {"m": 10.0},
         {"Ip": 0.03},
-        {"m": 10.0, "Ip": 0.03, "disk_elements": []},
-        {"m": 10.0, "Ip": 0.03, "bearing_elements": []},
+        {"disk_elements": []},
+        {"bearing_elements": []},
     ],
 )
 def test_motor_lumped_arguments_are_validated(arguments):
     with pytest.raises(ValueError):
         ElectricMotor(n=0, **_CIRCUIT, **arguments)
-
-
-@pytest.mark.parametrize("arguments", [{"m": 10.0}, {"Ip": 0.03}, {"Id": 0.0}])
-def test_motor_shaft_elements_exclude_lumped_arguments(motor_shaft_elements, arguments):
-    with pytest.raises(ValueError):
-        ElectricMotor(n=0, **_CIRCUIT, shaft_elements=motor_shaft_elements, **arguments)

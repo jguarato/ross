@@ -221,7 +221,7 @@ class ElectricMotor:
 
             self._mechanical_model_type = "lumped"
             self.mechanical_model = DiskElement(
-                n=n, m=m, Id=Id or 0.0, Ip=Ip, tag=tag, color=color
+                n=n, m=m, Id=Id or 0.0, Ip=Ip, color=color
             )
             self.m = float(m)
             self.Ip = float(Ip)
@@ -327,7 +327,6 @@ class ElectricMotor:
             f"mutual_reactance={self.mutual_reactance:{0}.{5}}, "
             f"m={self.m:{0}.{5}}, "
             f"Ip={self.Ip:{0}.{5}}, "
-            f"Id={self.Id:{0}.{5}}, "
             f"viscosity_coeff={self.viscosity_coeff:{0}.{5}}, "
             f"Ip_load={self.Ip_load:{0}.{5}}, "
             f"voltage_net={self.voltage_net:{0}.{5}}, "
@@ -377,7 +376,6 @@ class ElectricMotor:
             f"\nMutual Reactance (Ohm):             {self.mutual_reactance:{2}.{5}}"
             f"\nMotor Mass (kg):                    {self.m:{2}.{5}}"
             f"\nMotor Inertia (kg.m²):              {self.Ip:{2}.{5}}"
-            f"\nMotor Diametral Inertia (kg.m²):    {self.Id:{2}.{5}}"
             f"\nViscosity Coefficient (Pa.s):       {self.viscosity_coeff:{2}.{5}}"
             f"\nLoad Inertia (kg.m²):               {self.Ip_load:{2}.{5}}"
             f"\n----- Power Supply Parameters (SCIP) -----"
