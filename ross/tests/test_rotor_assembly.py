@@ -4139,6 +4139,34 @@ def test_plot_rotor_after_add_motor_with_a_lumped_motor():
     rotor.plot_rotor()
 
 
+@pytest.mark.parametrize("operation", ["add", "refine", "load", "concatenate"])
+def test_lumped_motor_mechanical_model_is_the_disk_of_the_rotor(operation, tmp_path):
+    rotor = rotor_example().add_motor(motor_example())
+    if operation == "refine":
+        rotor = rotor.refine(2)
+    elif operation == "load":
+        rotor.save(tmp_path / "rotor.toml")
+        rotor = Rotor.load(tmp_path / "rotor.toml")
+    elif operation == "concatenate":
+        rotor = Rotor.concatenate([rotor, rotor_example()])
+
+    assert any(disk is rotor.motor.mechanical_model for disk in rotor.disk_elements)
+
+
+@pytest.mark.parametrize("structure", ["fem-left", "fem-right"])
+def test_plot_rotor_draws_a_fem_motor_at_the_torque_node(structure):
+    # Reference: the axial position of the joint node, where the torque acts.
+    rotor = _rotor_with_motor(structure)
+    motor = rotor.motor
+    z_torque = rotor.nodes_pos[rotor.nodes.index(motor.n_torque)]
+    fig = rotor.plot_rotor()
+    motor_trace = next(trace for trace in fig.data if trace.name == motor.tag)
+
+    assert_allclose(rotor.df_motor["nodes_pos_l"].values[0], z_torque)
+    assert_allclose(motor_trace.x[0], z_torque)
+    assert_allclose(fig.layout.images[0].x, z_torque)
+
+
 def test_add_motor_with_shaft_elements_at_a_middle_node_raises():
     load = rotor_example()
     with pytest.raises(ValueError, match="first or the last node"):

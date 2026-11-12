@@ -836,7 +836,19 @@ class Rotor(object):
                 for i, name in enumerate(dof_names)
             }
 
-            z_pos = self.nodes_pos[self.nodes.index(motor.n)]
+            if motor._mechanical_model_type == "lumped":
+                motor.mechanical_model = next(
+                    (
+                        disk
+                        for disk in self.disk_elements
+                        if disk.n == motor.n
+                        and np.isclose(disk.m, motor.m)
+                        and np.isclose(disk.Ip, motor.Ip)
+                    ),
+                    motor.mechanical_model,
+                )
+
+            z_pos = self.nodes_pos[self.nodes.index(motor.n_torque)]
             df_motor = pd.DataFrame([motor.summary()])
             df_motor["dof_global_index"] = [motor.dof_global_index]
             df_motor["nodes_pos_l"] = z_pos
@@ -1670,15 +1682,6 @@ class Rotor(object):
 
             full_model = self.add_elements([inertia])
 
-            inertia = next(
-                elm
-                for elm in full_model.disk_elements
-                if elm.n == motor.n and elm.m == motor.m and elm.Ip == motor.Ip
-            )
-            motor.mechanical_model = inertia
-
-            full_model.update_element_tag(inertia, f"{inertia.tag} (from {motor.tag})")
-
         else:
             motor_rotor = motor.mechanical_model
             if motor.n == min(self.nodes):
@@ -1697,6 +1700,10 @@ class Rotor(object):
             motor.n_torque = joint_node
 
         full_model.motor = motor
+
+        if motor._mechanical_model_type == "lumped":
+            inertia = full_model.motor.mechanical_model
+            full_model.update_element_tag(inertia, f"{inertia.tag} (from {motor.tag})")
 
         return full_model
 
@@ -4233,8 +4240,8 @@ class Rotor(object):
             motor = self.motor
             z_pos = Q_(self.df_motor["nodes_pos_l"].values[0], "m").to(length_units).m
             y_pos = Q_(self.df_motor["y_pos"].values[0], "m").to(length_units).m
-            yc_pos = center_line_pos[self.nodes.index(motor.n)]
-            diam = nodes_o_d[self.nodes.index(motor.n)]
+            yc_pos = center_line_pos[self.nodes.index(motor.n_torque)]
+            diam = nodes_o_d[self.nodes.index(motor.n_torque)]
             position = (z_pos, y_pos, yc_pos, diam)
             fig = motor._patch(position, fig)
 

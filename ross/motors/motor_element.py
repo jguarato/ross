@@ -566,7 +566,7 @@ class ElectricMotor:
         """
         frequency_hz = Q_(self.frequency_rated, "rad/s").to("Hz").m
         customdata = [
-            self.n,
+            self.n_torque,
             self.power_rated,
             self.voltage_rated,
             self.speed_rated,
@@ -575,7 +575,7 @@ class ElectricMotor:
             self.Ip,
         ]
         hovertemplate = (
-            f"Motor Node: {customdata[0]}<br>"
+            f"Motor Torque Node: {customdata[0]}<br>"
             f"Rated Power (W): {customdata[1]:.3f}<br>"
             f"Rated Voltage (V): {customdata[2]:.3f}<br>"
             f"Rated Speed (rad/s): {customdata[3]:.3f}<br>"
@@ -595,7 +595,8 @@ class ElectricMotor:
         ----------
         position : tuple
             Position ``(zpos, ypos, yc_pos, outer_diameter)`` in which the
-            patch will be drawn. The icon is centered on ``(zpos, yc_pos)``.
+            patch will be drawn. The icon is centered on ``(zpos, yc_pos)``,
+            the position of node ``n_torque``.
         fig : plotly.graph_objects.Figure
             The figure object which traces are added on.
 
