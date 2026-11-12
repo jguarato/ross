@@ -311,7 +311,7 @@ class Rotor(object):
         beta=0.0,
         tag=None,
     ):
-        self.set_tag(tag)
+        self.tag = tag or f"{self.__class__.__name__} 0"
 
         ####################################################
         # Config attributes
@@ -821,6 +821,10 @@ class Rotor(object):
 
     @motor.setter
     def motor(self, motor):
+        if motor is None and self._motor is not None:
+            self.df = self.df[self.df["type"] != "ElectricMotor"].reset_index(drop=True)
+            self.df_motor = pd.DataFrame()
+
         self._motor = motor
         if motor is not None:
             if motor.tag in [el.tag for el in self.elements]:
@@ -845,9 +849,25 @@ class Rotor(object):
             self.df = df.reset_index(drop=True).copy()
             self.df_motor = df_motor
 
-    def set_tag(self, tag):
-        """Set the tag for the current rotor."""
-        self.tag = tag or f"{self.__class__.__name__} 0"
+    def update_element_tag(self, elm, tag):
+        """Update the tag of an element in the rotor."""
+        old_tag, elm.tag = elm.tag, tag
+
+        if isinstance(elm, ElectricMotor):
+            df_type = "df_motor"
+        elif isinstance(elm, SealElement):
+            df_type = "df_seals"
+        elif isinstance(elm, BearingElement):
+            df_type = "df_bearings"
+        elif isinstance(elm, DiskElement):
+            df_type = "df_disks"
+        elif isinstance(elm, PointMass):
+            df_type = "df_point_mass"
+        else:
+            df_type = "df_shaft"
+
+        for frame in (self.df, getattr(self, df_type)):
+            frame.loc[frame["tag"] == old_tag, "tag"] = elm.tag
 
     def _fix_nodes_pos(self, index, node, nodes_pos_l):
         """Optional override to adjust node positions.
@@ -1650,9 +1670,14 @@ class Rotor(object):
 
             full_model = self.add_elements([inertia])
 
-            inertia = next(elm for elm in full_model.disk_elements if elm.n == motor.n)
+            inertia = next(
+                elm
+                for elm in full_model.disk_elements
+                if elm.n == motor.n and elm.m == motor.m and elm.Ip == motor.Ip
+            )
             motor.mechanical_model = inertia
-            inertia.tag += f" (from {motor.tag})"
+
+            full_model.update_element_tag(inertia, f"{inertia.tag} (from {motor.tag})")
 
         else:
             motor_rotor = motor.mechanical_model

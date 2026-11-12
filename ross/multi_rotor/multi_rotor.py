@@ -265,9 +265,12 @@ class MultiRotor(Rotor):
             raise Warning("""Rotor supports only one motor element.
             Using the motor element of the driving rotor.\n""")
         elif R1.motor is not None:
-            motor = R1.motor
+            motor = copy(R1.motor)
         elif R2.motor is not None:
-            motor = R2.motor
+            motor = copy(R2.motor)
+            motor.n += driven_offset
+            if motor._mechanical_model_type == "fem":
+                motor.n_torque += driven_offset
 
         super().__init__(
             shaft_elements,
@@ -279,7 +282,9 @@ class MultiRotor(Rotor):
             rated_w=rated_w,
             tag=tag,
         )
-        self.motor = copy(motor)
+        self.motor = motor
+        for rotor in self.rotors.values():
+            rotor.motor = None
 
         # Create mesh
         self.mesh = Mesh(
@@ -542,9 +547,7 @@ class MultiRotor(Rotor):
             },
         }
 
-        if self.motor is not None and all(
-            rotor.motor is None for rotor in self.rotors.values()
-        ):
+        if self.motor is not None:
             data.update(self.motor._to_dict(file_format))
 
         return data
@@ -590,10 +593,6 @@ class MultiRotor(Rotor):
             and self.rotors["driving"] == other.rotors["driving"]
             and self.rotors["driven"] == other.rotors["driven"]
         )
-
-    def set_tag(self, tag):
-        """Set the tag for the current multi-rotor."""
-        self.tag = tag or "MultiRotor 0"
 
     def add_nodes(self, new_nodes_pos):
         """Add new nodes to the multi-rotor.

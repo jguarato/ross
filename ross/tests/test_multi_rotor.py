@@ -230,6 +230,40 @@ def test_save_and_load_keep_the_motor(multi_rotor, file_format, tmp_path):
     assert_allclose(loaded.M(), with_motor.M())
 
 
+@pytest.mark.parametrize("rotor_name", ["driving", "driven"])
+def test_motor_of_a_component_rotor_stays_only_in_the_multi_rotor(
+    multi_rotor, rotor_name, tmp_path
+):
+    # Reference: the motor sits at the node of the multi-rotor that has the same
+    # index as the motor node in its component rotor.
+    component = multi_rotor.rotors[rotor_name]
+    index = 1
+    motor = motor_example()
+    motor.n = int(component.nodes[index])
+
+    rotors = dict(multi_rotor.rotors)
+    rotors[rotor_name] = component.add_motor(motor)
+    assembled = rs.MultiRotor(
+        rotors["driving"], rotors["driven"], **multi_rotor._parameters()
+    )
+
+    nodes = assembled.nodes if rotor_name == "driving" else assembled.driven_nodes
+    assert assembled.motor.n == nodes[index]
+    assert assembled.motor.n_torque == nodes[index]
+    assert (
+        assembled.motor.dof_global_index[f"theta_{nodes[index]}"]
+        == assembled.number_dof * nodes[index] + 5
+    )
+    for rotor in assembled.rotors.values():
+        assert rotor.motor is None
+        assert "ElectricMotor" not in rotor.df["type"].values
+
+    assembled.save(tmp_path / "multi_rotor.toml")
+    loaded = rs.MultiRotor.load(tmp_path / "multi_rotor.toml")
+    assert loaded.motor.n == assembled.motor.n
+    assert all(rotor.motor is None for rotor in loaded.rotors.values())
+
+
 def test_new_parameters_keep_3_0_positional_calls():
     rotor1, rotor2 = gear_pair_rotors()
     square = {"enable": True, "amplitude_ratio": 0.275}

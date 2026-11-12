@@ -4109,6 +4109,36 @@ def test_save_a_motor_with_shaft_elements_not_connected_raises(tmp_path):
         _motor_with_shaft_elements(0).save(tmp_path / "motor.toml")
 
 
+def test_update_element_tag_changes_only_the_given_tag():
+    rotor = rotor_example()
+    names = ("df", "df_shaft", "df_disks", "df_bearings", "df_seals", "df_point_mass")
+    before = {
+        name: set(getattr(rotor, name)["tag"])
+        for name in names
+        if "tag" in getattr(rotor, name)
+    }
+    disk = next(elm for elm in rotor.disk_elements if elm.tag == "Disk 0")
+
+    rotor.update_element_tag(disk, "Generator")
+
+    assert disk.tag == "Generator"
+    for name, tags in before.items():
+        expected = {"Generator" if tag == "Disk 0" else tag for tag in tags}
+        assert set(getattr(rotor, name)["tag"]) == expected
+
+
+def test_plot_rotor_after_add_motor_with_a_lumped_motor():
+    motor = motor_example()
+    motor.tag = "M1"
+    base = rotor_example()
+    rotor = base.add_motor(motor)
+    disk_tags = set(rotor.df[rotor.df["type"] == "DiskElement"]["tag"])
+
+    assert {disk.tag for disk in rotor.disk_elements} == disk_tags
+    assert f"Disk {len(base.disk_elements)} (from M1)" in disk_tags
+    rotor.plot_rotor()
+
+
 def test_add_motor_with_shaft_elements_at_a_middle_node_raises():
     load = rotor_example()
     with pytest.raises(ValueError, match="first or the last node"):
