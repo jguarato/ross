@@ -2,7 +2,14 @@
 
 Source: `docs/user_guide/tutorial_motor.ipynb`
 
-`ElectricMotor` models a three-phase induction motor (TPIM) in a rotor-flux-oriented synchronous frame. It carries the structure of the motor as a mechanical model, either lumped (`m`, `Ip`, `Id`) or a finite element model of the motor rotor (`shaft_elements`, `disk_elements`, `bearing_elements`), which `Rotor.add_motor` adds to the rotor. `Rotor.run_with_motor` applies the motor torque to the torsional DOF (`theta`) of node `motor.n_torque`.
+`ElectricMotor` models a three-phase induction motor (TPIM) in a rotor-flux-oriented synchronous frame. Besides its electrical parameters, it carries the structure of the motor as a mechanical model, chosen by the arguments given to it:
+
+| Model | Arguments | What `Rotor.add_motor` adds to the rotor | `motor.n_torque` |
+|-------|-----------|------------------------------------------|------------------|
+| Lumped | `m`, `Ip` and, optionally, `Id` | A disk with the mass and the inertias of the motor, at node `n` | `n` |
+| Finite element | `shaft_elements` and, optionally, `disk_elements` and `bearing_elements` | The rotor of the motor, concatenated to the rotor of the load | Node shared by the two rotors |
+
+`Rotor.run_with_motor` applies the motor torque to the torsional DOF (`theta`) of node `motor.n_torque`. Use the lumped model when the motor is stiff compared to the rest of the machine; the finite element model adds the flexibility of the motor shaft and bearings and allows a coupling between the motor and the load.
 
 ## Motor model
 
@@ -11,9 +18,8 @@ import numpy as np
 import ross as rs
 from ross.units import Q_
 
-motor = rs.ElectricMotor(
-    n=0,
-    tag="TPIM",
+# electrical parameters, shared by both mechanical models
+electrical = dict(
     power_rated=Q_(1.5, "hp"),
     voltage_rated=127,  # V (phase)
     speed_rated=Q_(1710, "RPM"),
@@ -24,20 +30,59 @@ motor = rs.ElectricMotor(
     stator_reactance=1.3,  # Ohm
     rotor_reactance=1.3,  # Ohm
     mutual_reactance=43.08,  # Ohm
+    Ip_load=0.0,  # kg·m²
+    viscosity_coeff=0.0,
+)
+
+# lumped model: mass and inertias at node n
+motor = rs.ElectricMotor(
+    n=0,
+    tag="TPIM",
     m=10.0,  # kg
     Ip=0.0372,  # kg·m²
     Id=0.0,  # kg·m², optional
-    Ip_load=0.0,  # kg·m²
-    viscosity_coeff=0.0,
+    **electrical,
 )
 
 motor = rs.motor_example()  # the same 1.5 hp, 127 V / 60 Hz, 4-pole motor at node 0
 motor.T_rated  # rated torque (N·m), the reference for load_torque_ratio
 ```
 
+### Finite element model
+
+```python
+# the motor rotor, numbered from node 0; m, Ip and Id are computed from the elements
+motor_fem = rs.ElectricMotor(
+    n=0,  # first node of the load rotor: motor on the left (last node: on the right)
+    tag="TPIM",
+    shaft_elements=[
+        rs.ShaftElement(L=0.05, idl=0, odl=0.03, material=rs.steel) for _ in range(5)
+    ],
+    disk_elements=[  # rotor core
+        rs.DiskElement.from_geometry(
+            n=2, material=rs.steel, width=0.08, i_d=0.03, o_d=0.15
+        )
+    ],
+    bearing_elements=[
+        rs.BearingElement(n=0, kxx=1e6, cxx=2e3),
+        rs.BearingElement(n=4, kxx=1e6, cxx=2e3),
+    ],
+    **electrical,
+)
+motor_fem.m, motor_fem.Ip  # 11.98 kg, 0.0312 kg·m²
+motor_fem.mechanical_model  # the rotor of the motor
+
+# the motor also answers to the Rotor methods it does not define
+fig = motor_fem.plot_rotor()
+modal = motor_fem.run_modal(speed=0)
+campbell = motor_fem.run_campbell(np.linspace(0, Q_(4000, "RPM").to("rad/s").m, 21))
+fig = campbell.plot()
+```
+
+- With `shaft_elements`, the attributes of the motor (`m`, `Ip`, `tag`, `save()`...) and the arguments of `ElectricMotor` are not forwarded to the rotor: use `motor_fem.mechanical_model.shaft_elements`, for example. The lumped motor has no rotor and forwards nothing.
+- Either `m` and `Ip` (lumped model) or `shaft_elements` (finite element model) is required. Without `shaft_elements`, a missing `m` or `Ip`, or any `disk_elements` or `bearing_elements`, raises `ValueError`; with `shaft_elements`, `m`, `Ip` and `Id` raise `ValueError`. The motor-only simulations use only `Ip + Ip_load`.
 - The direct-on-line supply voltage and frequency are the `voltage_net` and `frequency_net` arguments of `run_direct_on_line`, which default to the rated values. The `ElectricMotor` arguments of the same name do not reach the supply: `voltage_net` only sets the network short-circuit impedance and `frequency_net` is not used. `run_with_motor` does not pass a supply voltage or frequency, so its `"DOL"` mode always runs at the rated values. The inverters set the voltage and frequency themselves.
 - Speeds and frequencies are rad/s internally; pass `Q_(..., "RPM")` or `Q_(..., "Hz")` to convert.
-- Either `m` and `Ip` (lumped model) or `shaft_elements` (finite element model) is required; without `shaft_elements`, a missing `m` or `Ip`, or any `disk_elements` or `bearing_elements`, raises `ValueError`, and with `shaft_elements`, `m`, `Ip` and `Id` raise `ValueError`. The motor-only simulations use only `Ip + Ip_load`; with `shaft_elements`, `motor.m` and `motor.Ip` are computed from the elements.
 
 ## Motor-only analyses
 
@@ -155,44 +200,9 @@ load_rotor = rs.Rotor(base_rotor.shaft_elements, base_rotor.disk_elements, beari
 rotor_lumped = load_rotor.add_motor(motor)  # returns a new rotor
 fig = rotor_lumped.plot_rotor()  # the motor is drawn at its node
 
-# finite element model: the motor rotor, numbered from node 0
-motor_fem = rs.ElectricMotor(
-    n=0,  # first node of the load rotor: motor on the left (last node: on the right)
-    tag="TPIM",
-    power_rated=Q_(1.5, "hp"),
-    voltage_rated=127,
-    speed_rated=Q_(1710, "RPM"),
-    frequency_rated=Q_(60, "Hz"),
-    n_poles=4,
-    stator_resistance=2.5,
-    rotor_resistance=1.8,
-    stator_reactance=1.3,
-    rotor_reactance=1.3,
-    mutual_reactance=43.08,
-    shaft_elements=[
-        rs.ShaftElement(L=0.05, idl=0, odl=0.03, material=rs.steel) for _ in range(5)
-    ],
-    disk_elements=[  # rotor core
-        rs.DiskElement.from_geometry(
-            n=2, material=rs.steel, width=0.08, i_d=0.03, o_d=0.15
-        )
-    ],
-    bearing_elements=[
-        rs.BearingElement(n=0, kxx=1e6, cxx=2e3),
-        rs.BearingElement(n=4, kxx=1e6, cxx=2e3),
-    ],
-)
-fig = motor_fem.plot_rotor()  # the motor rotor alone
-
-# with shaft_elements, the motor also answers to the Rotor methods it does not define
-modal = motor_fem.run_modal(speed=0)
-campbell = motor_fem.run_campbell(np.linspace(0, Q_(4000, "RPM").to("rad/s").m, 21))
-fig = campbell.plot()
-# not forwarded: m, Ip, tag, save() and the ElectricMotor arguments
-# (use motor_fem.mechanical_model.shaft_elements); the lumped motor forwards nothing
-
-# motor + coupling + load: the coupling is the first element of the load rotor,
-# so the torque (at the joint node) reaches the load through the coupling
+# finite element model: motor_fem of the Motor model section, with a coupling
+# between the motor and the load. The coupling is the first element of the load
+# rotor, so the torque (at the joint node) reaches the load through the coupling
 coupling = rs.CouplingElement(
     m_l=0.5,
     m_r=0.5,
