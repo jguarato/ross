@@ -614,3 +614,29 @@ def test_motor_with_shaft_elements_takes_inertia_from_the_elements(
 def test_motor_lumped_arguments_are_validated(arguments):
     with pytest.raises(ValueError):
         ElectricMotor(n=0, **_CIRCUIT, **arguments)
+
+
+@pytest.mark.parametrize("arguments", [{"disk_elements": []}, {"bearing_elements": []}])
+def test_motor_lumped_rejects_fem_arguments(arguments):
+    with pytest.raises(ValueError):
+        ElectricMotor(n=0, **_CIRCUIT, m=10.0, Ip=0.03, **arguments)
+
+
+def test_motor_with_shaft_elements_forwards_rotor_methods(motor_shaft_elements):
+    motor = ElectricMotor(n=3, **_CIRCUIT, shaft_elements=motor_shaft_elements)
+    rotor = motor.mechanical_model
+
+    assert motor.nodes == rotor.nodes
+    assert "run_modal" in dir(motor)
+    # Reference: the same analysis called on the rotor, a different code path.
+    assert_allclose(
+        motor.run_modal(speed=0).wn, rotor.run_modal(speed=0).wn, rtol=1e-12
+    )
+
+
+def test_motor_with_shaft_elements_keeps_its_own_attributes(motor_shaft_elements):
+    motor = ElectricMotor(
+        n=3, **_CIRCUIT, shaft_elements=motor_shaft_elements, tag="motor"
+    )
+
+    assert motor.Ip == motor.mechanical_model.Ip

@@ -213,6 +213,11 @@ class ElectricMotor:
         self.mutual_reactance = float(mutual_reactance)
 
         if shaft_elements is None:
+            if disk_elements is not None or bearing_elements is not None:
+                raise ValueError(
+                    "'disk_elements' and 'bearing_elements' are only used with "
+                    "'shaft_elements'."
+                )
             if m is None or Ip is None:
                 raise ValueError(
                     "Pass either 'm' and 'Ip' (lumped model) or 'shaft_elements' "
@@ -226,6 +231,11 @@ class ElectricMotor:
             self.m = float(m)
             self.Ip = float(Ip)
         else:
+            if m is not None or Ip is not None or Id is not None:
+                raise ValueError(
+                    "'m', 'Ip' and 'Id' cannot be given with 'shaft_elements'; "
+                    "they are computed from the elements."
+                )
             from ross.rotor_assembly import Rotor
 
             self._mechanical_model_type = "fem"
@@ -294,6 +304,41 @@ class ElectricMotor:
         self.scale_factor = scale_factor
         self.color = color
         self.dof_global_index = None
+
+    def __getattr__(self, name):
+        """Forward to the motor rotor the attributes the motor does not define.
+
+        Only called when ``name`` is not found on the motor, and only with the
+        finite element model (``shaft_elements``). Attributes of the motor, such
+        as ``m``, ``Ip``, ``tag`` and ``save``, take precedence, and so do the
+        names of the ``__init__`` parameters, which ``save()`` reads from the
+        motor: use ``motor.mechanical_model.shaft_elements``, for example.
+        """
+        is_fem = self.__dict__.get("_mechanical_model_type") == "fem"
+        init_parameters = signature(type(self).__init__).parameters
+
+        if is_fem and name not in init_parameters:
+            return getattr(self.__dict__["mechanical_model"], name)
+        else:
+            raise AttributeError(
+                f"{type(self).__name__!r} object has no attribute {name!r}"
+            )
+
+    def __dir__(self):
+        """List the attributes of the motor, and of its rotor with ``shaft_elements``.
+
+        Returns
+        -------
+        list of str
+            Sorted names of the attributes of the motor. With the finite element
+            model, it includes the names forwarded to the motor rotor.
+        """
+        names = set(super().__dir__())
+
+        if self.__dict__.get("_mechanical_model_type") == "fem":
+            names |= set(dir(self.mechanical_model))
+
+        return sorted(names)
 
     def __repr__(self):
         """Return a string representation of a motor element.
