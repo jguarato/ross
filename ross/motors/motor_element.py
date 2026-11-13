@@ -4,7 +4,8 @@ This module defines the ElectricMotor class which represents a 3-phase Induction
 simulated using a 4th-order Runge-Kutta method, considering magnetic fluxes and currents.
 """
 
-import base64
+import re
+from functools import lru_cache
 from pathlib import Path
 
 import numpy as np
@@ -120,9 +121,8 @@ class ElectricMotor:
     Notes
     -----
     This class models the electromechanical behavior of a TPIM and computes
-    electric torque in time. It is not a rotor element. Its only contribution
-    to the matrices assembled by ``Rotor`` is its mass ``m`` and moments of inertia
-    ``Id`` and ``Ip``, added as a disk at node ``n`` (``mechanical_model``).
+    electric torque in time. It also carries the structure of the motor, its
+    ``mechanical_model``, which ``Rotor.add_motor`` adds to the rotor.
 
     The attribute ``mechanical_model`` holds the mechanical model of the motor.
     With the lumped model, it is a disk element with the mass ``m``, the
@@ -168,6 +168,8 @@ class ElectricMotor:
     >>> motor.power_rated
     1103.248125
     """
+
+    _legend_group = "Electric Motor"
 
     @check_units
     def __init__(
@@ -634,7 +636,8 @@ class ElectricMotor:
         """Motor element patch.
 
         Patch used to draw the motor element in the rotor plot using Plotly.
-        The motor icon is rendered from ``motor_icon.svg``.
+        The motor icon is drawn from ``motor_icon.svg`` with filled traces,
+        which share the legend group of the motor.
 
         Parameters
         ----------
@@ -658,28 +661,29 @@ class ElectricMotor:
         image_width = image_height
         marker_size = image_height * 350
 
-        svg_path = Path(__file__).parent / "motor_icon.svg"
-        svg = svg_path.read_text(encoding="utf-8")
-        svg = svg.replace("#61809A", f"{self.color}")
+        for fill_color, polygons in _motor_icon_polygons():
+            x = []
+            y = []
+            for polygon in polygons:
+                x.extend(zpos + (polygon[:, 0] - 0.5) * image_width)
+                y.extend(yc_pos - (polygon[:, 1] - 0.5) * image_height)
+                x.append(None)
+                y.append(None)
 
-        encoded = base64.b64encode(svg.encode("utf-8")).decode("ascii")
-        src_svg = f"data:image/svg+xml;base64,{encoded}"
-
-        fig.add_layout_image(
-            dict(
-                source=src_svg,
-                xref="x",
-                yref="y",
-                x=zpos,
-                y=yc_pos,
-                sizex=image_width,
-                sizey=image_height,
-                xanchor="center",
-                yanchor="middle",
-                layer="above",
-                opacity=0.9,
+            fig.add_trace(
+                go.Scatter(
+                    x=x,
+                    y=y,
+                    mode="lines",
+                    fill="toself",
+                    fillcolor=self.color if fill_color == "#61809A" else fill_color,
+                    line=dict(width=1.5, color="black"),
+                    opacity=0.9,
+                    legendgroup=self._legend_group,
+                    showlegend=False,
+                    hoverinfo="skip",
+                )
             )
-        )
 
         fig.add_trace(
             go.Scatter(
@@ -691,7 +695,7 @@ class ElectricMotor:
                 hovertemplate=hovertemplate,
                 hoverinfo="text",
                 name=self.tag,
-                legendgroup="motors",
+                legendgroup=self._legend_group,
                 showlegend=False,
                 hoverlabel=dict(bgcolor=self.color),
             )
@@ -1568,3 +1572,50 @@ def motor_example():
         voltage_net=127,
         frequency_net=Q_(60.0, "Hz"),
     )
+
+
+@lru_cache(maxsize=1)
+def _motor_icon_polygons():
+    """Read the motor icon as filled polygons.
+
+    The paths of ``motor_icon.svg`` are made of absolute moves and cubic
+    Bezier curves. Each curve is sampled, so the icon can be drawn with
+    traces, which the legend of the rotor plot can show and hide.
+
+    Returns
+    -------
+    list of tuple
+        One ``(fill_color, polygons)`` pair for each path of the icon, in
+        drawing order. Each polygon is an array of points whose coordinates
+        are fractions of the width (x) and of the height (y, downwards) of
+        the icon.
+    """
+    svg = (Path(__file__).parent / "motor_icon.svg").read_text(encoding="utf-8")
+    view_size = float(re.search(r'viewBox="0 0 ([\d.]+) ', svg).group(1))
+    t = np.linspace(0, 1, 16)[1:, None]
+
+    icon = []
+    for attributes, path in re.findall(r"<path([^>]*?)\sd=\"([^\"]*)\"", svg, re.S):
+        fill_color = re.search(r'fill="([^"]*)"', attributes).group(1)
+        polygons = []
+        for subpath in path.split("M")[1:]:
+            numbers = np.array(re.findall(r"-?\d+\.?\d*", subpath), dtype=float)
+            points = numbers.reshape(-1, 2)
+            polygon = [points[0]]
+            for p0, p1, p2, p3 in zip(
+                points[:-1:3],
+                points[1::3],
+                points[2::3],
+                points[3::3],
+                strict=True,
+            ):
+                polygon.extend(
+                    (1 - t) ** 3 * p0
+                    + 3 * (1 - t) ** 2 * t * p1
+                    + 3 * (1 - t) * t**2 * p2
+                    + t**3 * p3
+                )
+            polygons.append(np.array(polygon) / view_size)
+        icon.append((fill_color, polygons))
+
+    return icon

@@ -4171,7 +4171,11 @@ class Rotor(object):
 
             heaviest = max([disk.m for disk in self.disk_elements])
 
+            motor_disk = getattr(self.motor, "mechanical_model", None)
             for disk in self.disk_elements:
+                if disk is motor_disk:
+                    disk._legend_group = self.motor._legend_group
+
                 scale_factor = disk.scale_factor
                 if scale_factor == "mass":
                     scale_factor = disk._scale_factor_calculated
@@ -4512,10 +4516,15 @@ class Rotor(object):
             else:
                 swatches[elm.material.name] = elm.material.color
 
+        motor_disk = getattr(self.motor, "mechanical_model", None)
         for element in chain(
             self.disk_elements, self.bearing_elements, self.point_mass_elements
         ):
-            swatches.setdefault(element._legend_group, element.color)
+            if element is not motor_disk:
+                swatches.setdefault(element._legend_group, element.color)
+
+        if self.motor is not None:
+            swatches[self.motor._legend_group] = self.motor.color
 
         for name, color in swatches.items():
             shades = color_shades(color)

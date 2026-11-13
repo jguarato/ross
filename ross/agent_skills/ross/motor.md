@@ -2,7 +2,7 @@
 
 Source: `docs/user_guide/tutorial_motor.ipynb`
 
-`ElectricMotor` models a three-phase induction motor (TPIM) in a rotor-flux-oriented synchronous frame. It is not a rotor element: its structure is a mechanical model, either lumped (`m`, `Ip`, `Id`) or a finite element model of the motor rotor (`shaft_elements`, `disk_elements`, `bearing_elements`), which `Rotor.add_motor` adds to the rotor. `Rotor.run_with_motor` applies the motor torque to the torsional DOF (`theta`) of node `motor.n_torque`.
+`ElectricMotor` models a three-phase induction motor (TPIM) in a rotor-flux-oriented synchronous frame. It carries the structure of the motor as a mechanical model, either lumped (`m`, `Ip`, `Id`) or a finite element model of the motor rotor (`shaft_elements`, `disk_elements`, `bearing_elements`), which `Rotor.add_motor` adds to the rotor. `Rotor.run_with_motor` applies the motor torque to the torsional DOF (`theta`) of node `motor.n_torque`.
 
 ## Motor model
 
@@ -37,7 +37,7 @@ motor.T_rated  # rated torque (N·m), the reference for load_torque_ratio
 
 - The direct-on-line supply voltage and frequency are the `voltage_net` and `frequency_net` arguments of `run_direct_on_line`, which default to the rated values. The `ElectricMotor` arguments of the same name do not reach the supply: `voltage_net` only sets the network short-circuit impedance and `frequency_net` is not used. `run_with_motor` does not pass a supply voltage or frequency, so its `"DOL"` mode always runs at the rated values. The inverters set the voltage and frequency themselves.
 - Speeds and frequencies are rad/s internally; pass `Q_(..., "RPM")` or `Q_(..., "Hz")` to convert.
-- Either `m` and `Ip` (lumped model) or `shaft_elements` (finite element model) is required; without `shaft_elements`, a missing `m` or `Ip` raises `ValueError`, and with `shaft_elements`, `m`, `Ip` and `Id` are ignored. The motor-only simulations use only `Ip + Ip_load`; with `shaft_elements`, `motor.m` and `motor.Ip` are computed from the elements.
+- Either `m` and `Ip` (lumped model) or `shaft_elements` (finite element model) is required; without `shaft_elements`, a missing `m` or `Ip`, or any `disk_elements` or `bearing_elements`, raises `ValueError`, and with `shaft_elements`, `m`, `Ip` and `Id` raise `ValueError`. The motor-only simulations use only `Ip + Ip_load`; with `shaft_elements`, `motor.m` and `motor.Ip` are computed from the elements.
 
 ## Motor-only analyses
 
@@ -182,26 +182,49 @@ motor_fem = rs.ElectricMotor(
         rs.BearingElement(n=4, kxx=1e6, cxx=2e3),
     ],
 )
-fig = motor_fem.mechanical_model.plot_rotor()  # the motor rotor alone
+fig = motor_fem.plot_rotor()  # the motor rotor alone
+
+# with shaft_elements, the motor also answers to the Rotor methods it does not define
+modal = motor_fem.run_modal(speed=0)
+campbell = motor_fem.run_campbell(np.linspace(0, Q_(4000, "RPM").to("rad/s").m, 21))
+fig = campbell.plot()
+# not forwarded: m, Ip, tag, save() and the ElectricMotor arguments
+# (use motor_fem.mechanical_model.shaft_elements); the lumped motor forwards nothing
 
 # motor + coupling + load: the coupling is the first element of the load rotor,
 # so the torque (at the joint node) reaches the load through the coupling
 coupling = rs.CouplingElement(
-    m_l=0.5, m_r=0.5, Ip_l=2e-4, Ip_r=2e-4,  # kg, kg·m² per hub
-    kt_x=1e7, kt_y=1e7,  # N/m
-    kr_x=1e4, kr_y=1e4,  # N·m/rad
+    m_l=0.5,
+    m_r=0.5,
+    Ip_l=2e-4,
+    Ip_r=2e-4,  # kg, kg·m² per hub
+    kt_x=1e7,
+    kt_y=1e7,  # N/m
+    kr_x=1e4,
+    kr_y=1e4,  # N·m/rad
     kr_z=5e3,  # torsional, N·m/rad
-    o_d=0.06, L=0.05,  # drawing only
+    o_d=0.06,
+    L=0.05,  # drawing only
 )
 coupled_load_rotor = rs.Rotor(
-    [coupling, *[rs.ShaftElement(L=0.25, idl=0, odl=0.05, material=rs.steel) for _ in range(6)]],
     [
-        rs.DiskElement.from_geometry(n=n, material=rs.steel, width=0.07, i_d=0.05, o_d=0.28)
+        coupling,
+        *[
+            rs.ShaftElement(L=0.25, idl=0, odl=0.05, material=rs.steel)
+            for _ in range(6)
+        ],
+    ],
+    [
+        rs.DiskElement.from_geometry(
+            n=n, material=rs.steel, width=0.07, i_d=0.05, o_d=0.28
+        )
         for n in (3, 5)
     ],
     [rs.BearingElement(n=n, kxx=1e6, cxx=2e3) for n in (1, 7)],
 )
-rotor_fem = coupled_load_rotor.add_motor(motor_fem)  # concatenates the motor rotor and the load rotor
+rotor_fem = coupled_load_rotor.add_motor(
+    motor_fem
+)  # concatenates the motor rotor and the load rotor
 rotor_fem.motor.n_torque  # 5: the joint node (motor side of the coupling), where the torque acts
 # the load rotor nodes are shifted by 5: coupling 5-6, disks at nodes 8 and 10
 

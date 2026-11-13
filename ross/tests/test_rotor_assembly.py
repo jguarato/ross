@@ -4164,7 +4164,6 @@ def test_plot_rotor_draws_a_fem_motor_at_the_torque_node(structure):
 
     assert_allclose(rotor.df_motor["nodes_pos_l"].values[0], z_torque)
     assert_allclose(motor_trace.x[0], z_torque)
-    assert_allclose(fig.layout.images[0].x, z_torque)
 
 
 def test_add_motor_with_shaft_elements_at_a_middle_node_raises():
